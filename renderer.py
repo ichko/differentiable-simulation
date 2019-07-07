@@ -9,9 +9,6 @@ class Renderer:
         self.width = w  # self.root.winfo_screenwidth()
         self.height = h  # self.root.winfo_screenheight()
 
-        # self.root.overrideredirect(True)
-        # self.root.geometry("{0}x{1}+0+0".format(self.width, self.height))
-
         self.origin_x = self.width / 2
         self.origin_y = self.height / 2
         self.is_running = True
