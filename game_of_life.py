@@ -1,50 +1,44 @@
 import numpy as np
 
-class GameOfLife:
-  def __init__(self, width, height):
-    self.state = np.zeros([width, height])
-    self.width = width
-    self.height = height
+def random_state(width, height):
+  return np.random.randint(2, size=(width, height))
 
-  def randomize(self):
-    self.state = np.random.randint(2, size=(self.width, self.height))
+def next_frame(state):
+  new_state = state.copy()
+  width, height = state.shape
 
-  def next(self):
-    new_state = self.state.copy()
-    height, width = self.state.shape
+  for x in range(width):
     for y in range(height):
-      for x in range(width):
-        arround = self.population_arround(x, y)
-        if self.state[y, x] and (arround < 2 or arround > 3):
-          new_state[y, x] = 0
-        elif arround == 3:
-          new_state[y, x] = 1
+      arround = population_arround(state, x, y)
+      if state[y, x] and (arround < 2 or arround > 3):
+        new_state[y, x] = 0
+      elif arround == 3:
+        new_state[y, x] = 1
 
-    self.state = new_state
+  return new_state
 
-  def population_arround(self, x, y):
-    return sum([
-      self.is_alive(x + dx, y + dy)
-      for dx in [-1, 0, 1]
-      for dy in [-1, 0, 1]
-      if dx != 0 or dy != 0
-    ])
+def population_arround(state, x, y):
+  width, height = state.shape
 
-  def is_alive(self, x, y):
-    x = x % self.width
-    y = y % self.height
+  def is_alive(x, y):
+    # Torus world
+    # x, y = x % width, y % height
+    if x < 0 or x >= width: return 0
+    if y < 0 or y >= height: return 0
+    return state[y, x]
 
-    return self.state[y, x]
-
-  def __repr__(self):
-    return str(self.state)
+  return sum([
+    is_alive(x + dx, y + dy)
+    for dx in [-1, 0, 1]
+    for dy in [-1, 0, 1]
+    if dx != 0 or dy != 0
+  ])
 
 
 if __name__ == '__main__':
-  game = GameOfLife(10, 10)
-  game.randomize()
+  state = random_state(10, 10)
 
-  for _ in range(10):
-    print(game)
-    game.next()
+  for _ in range(3):
+    print(state)
+    state = next_frame(state)
 
