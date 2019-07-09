@@ -6,7 +6,7 @@ import tensorflow as tf
 
 if __name__ == '__main__':
     W, H = 30, 30
-    MODEL = tf.keras.models.load_model(f'conway_{W}x{H}.h5')
+    MODEL = tf.keras.models.load_model(f'conway_{W}x{H}_small_error.h5')
 
     def next_learned_frame(state):
         state = state.reshape(1, W, H, 1)
