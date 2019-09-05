@@ -18,11 +18,11 @@ class Renderer:
         self.root.focus_set()
         self.canvas = tk.Canvas(
             self.root, width=self.width, height=self.height,
-            borderwidth=0, highlightthickness=0, bg='#0B1014'
+            borderwidth=0, highlightthickness=0, bg='#000'
         )
         self.root.bind('<Escape>', lambda e: self._exit())
 
-        # self.canvas.grid()
+        self.canvas.grid()
         self.canvas.pack()
 
     def destroy(self):
