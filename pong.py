@@ -28,10 +28,10 @@ def polar(angle, magnitude):
 
 
 class Plank:
-    def __init__(self, x):
-        self.pos = vec(x, 0)
-        self.width = 10
-        self.height = 25
+    def __init__(self, x, y, width, height):
+        self.pos = vec(x, y)
+        self.width = width
+        self.height = height
         self.speed = 2
 
     def render(self, renderer):
@@ -43,11 +43,10 @@ class Plank:
 
 
 class Ball:
-    def __init__(self, x, y):
+    def __init__(self, x, y, size):
         self.pos = vec(x, y)
-        self.direction = math.pi / 4
-        self.speed = 2
-        self.size = 10
+        self.velocity = vec(0.5, 1)
+        self.size = size
 
     def render(self, renderer):
         renderer.arc(self.pos.x, self.pos.y, self.size, fill='#fff')
@@ -55,34 +54,50 @@ class Ball:
 
 class PONG:
     def __init__(self):
-        self.width = 100
-        self.height = 100
+        self.width = 20
+        self.height = 20
 
-        self.left_plank = Plank(5)
-        self.right_plank = Plank(self.width - 15)
-        self.ball = Ball(self.width / 2, self.height / 2)
+        self.plank_width = 2
+        self.plank_height = 5
+        self.ball_size = 2
+
+        self.left_plank = Plank(
+            -self.width / 2, 0, self.plank_width, self.plank_height
+        )
+
+        self.right_plank = Plank(
+            self.width / 2 - self.plank_width, 0, self.plank_width, self.plank_height
+        )
+
+        self.ball = Ball(0, 0, self.ball_size)
 
     def update_plank(self, plank, inpt):
         plank.pos.y += inpt * plank.speed
 
-        if plank.pos.y < 0:
-            plank.pos.y = 0
+        if plank.pos.y > self.height / 2:
+            plank.pos.y = self.height / 2
 
-        if plank.pos.y + plank.height > self.height:
-            plank.pos.y = self.height - plank.height
+        if plank.pos.y < -self.height / 2 + plank.height:
+            plank.pos.y = -self.height / 2 + plank.height
 
     def update_ball(self, ball):
-        ball_velocity = polar(ball.direction, ball.speed)
-        ball.pos.add(ball_velocity)
+        ball.pos.add(ball.velocity)
 
-        if ball.pos.x < 0:
-            ball.pos.x = 0
-        if ball.pos.x + ball.size / 2 > self.width:
-            ball.pos.x = self.width - ball.size / 2
-        if ball.pos.y < 0:
-            ball.pos.y = 0
-        if ball.pos.y + ball.size / 2 > self.height:
-            ball.pos.y = self.height - ball.size / 2
+        if ball.pos.x > self.width / 2 - ball.size - self.plank_width:
+            ball.pos.x = self.width / 2 - ball.size - self.plank_width
+            ball.velocity.x *= -1
+
+        if ball.pos.x < -self.width / 2 + ball.size + self.plank_width:
+            ball.pos.x = -self.width / 2 + ball.size + self.plank_width
+            ball.velocity.x *= -1
+
+        if ball.pos.y > self.height / 2 - ball.size:
+            ball.pos.y = self.height / 2 - ball.size
+            ball.velocity.y *= -1
+
+        if ball.pos.y < -self.height / 2 + ball.size:
+            ball.pos.y = -self.height / 2 + ball.size
+            ball.velocity.y *= -1
 
     def tick(self, left_inpt=0, right_inpt=0):
         self.update_plank(self.left_plank, left_inpt)
@@ -93,20 +108,27 @@ class PONG:
 if __name__ == '__main__':
     from renderer import Renderer
     from time import sleep
+    from random import random
 
-    fps = 30
-    renderer = Renderer(1000, 1000, 'PONG')
+    fps = 60
+    t = 0
+    W, H = 1000, 1000
+    renderer = Renderer(W, H, 'PONG')
     pong = PONG()
 
     while renderer.is_running:
+        t += 0.1
         sleep(1 / fps)
         renderer.update()
 
+        renderer.rect(-pong.width / 2, pong.width / 2,
+                      pong.width, pong.height, fill='#444')
         pong.left_plank.render(renderer)
         pong.right_plank.render(renderer)
         pong.ball.render(renderer)
-        renderer.canvas.scale('all', 500, 500, 5, 5)
+        renderer.canvas.scale(
+            'all', W / 2, H / 2,
+            W / pong.width - 0.5, H / pong.height - 0.5
+        )
 
-        print(pong.left_plank.pos.y)
-
-        pong.tick(1, -1)
+        pong.tick(math.sin(t), math.cos(t))
