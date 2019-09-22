@@ -37,8 +37,7 @@ class Plank:
     def render(self, renderer):
         renderer.rect(
             self.pos.x, self.pos.y,
-            self.width, self.height,
-            fill='#fff'
+            self.width, self.height
         )
 
 
@@ -49,7 +48,7 @@ class Ball:
         self.size = size
 
     def render(self, renderer):
-        renderer.arc(self.pos.x, self.pos.y, self.size, fill='#fff')
+        renderer.arc(self.pos.x, self.pos.y, self.size)
 
 
 class PONG:
