@@ -2,7 +2,7 @@
 [Learning to simulate Conway's Game of Life](./learning_conways_game_of_life.ipynb)
 
 # Content
-This repo contains materials for for my masters project on learning statefull simulations with deep differentiable models. The focus will be to train a naural network to be an end-to-end game.
+This repo contains materials for for my masters project on learning statefull simulations with deep differentiable models. The focus will be to train a neural network to be an end-to-end game.
 
 ## Setup
 The abstraction for a video game I will look at is as follows:
