@@ -56,7 +56,7 @@ class Plank:
 class Ball:
     def __init__(self, x, y, size):
         self.pos = vec(x, y)
-        self.velocity = polar(uniform(0, math.pi), 2)
+        self.velocity = polar(uniform(0.1, math.pi / 2 - 0.1), 1.2)
         self.size = size
 
     def render(self, renderer):
@@ -166,5 +166,5 @@ if __name__ == '__main__':
         left_plank_dir = math.copysign(1, left_dir_picker)
         right_plank_dir = math.copysign(1, right_dir_picker)
 
-        # if not pong.game_over:
-        pong.tick(left_plank_dir, right_plank_dir)
+        if not pong.game_over:
+            pong.tick(left_plank_dir, right_plank_dir)
