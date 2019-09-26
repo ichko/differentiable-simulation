@@ -1,4 +1,4 @@
-import math
+from math import sin, cos, copysign, sqrt, pi
 from renderer import Renderer
 from time import sleep, time
 from random import uniform, random as rand
@@ -17,7 +17,7 @@ class Vector:
 
     @property
     def length(self):
-        return math.sqrt(self.x * self.x + self.y * self.y)
+        return sqrt(self.x * self.x + self.y * self.y)
 
     @property
     def noramalized(self):
@@ -34,8 +34,8 @@ def vec(x=0, y=0):
 
 def polar(angle, magnitude):
     return vec(
-        math.cos(angle) * magnitude,
-        math.sin(angle) * magnitude
+        cos(angle) * magnitude,
+        sin(angle) * magnitude
     )
 
 
@@ -56,7 +56,7 @@ class Plank:
 class Ball:
     def __init__(self, x, y, size):
         self.pos = vec(x, y)
-        self.velocity = polar(uniform(0.1, math.pi / 2 - 0.1), 1.2)
+        self.velocity = polar(uniform(0.1, pi / 2 - 0.1), 1.2)
         self.size = size
 
     def render(self, renderer):
@@ -140,46 +140,53 @@ class PONG:
         self.update_ball(self.ball)
 
 
-def frame_generator():
-    R = Renderer(50, 50)
+def get_frame_generator(W, H, seq_len):
+    def new_pong(): return PONG(w=W, h=H, pw=5, ph=15, bs=2)
+    R = Renderer(W, H)
 
-    fps = 1000
-    pong = PONG(
-        50, 50,
-        5, 15,
-        2
-    )
+    pong = new_pong()
+    f = 0
 
-    def get_next_frame():
-        sleep(1 / fps)
-
+    while True:
         pong.left_plank.render(R)
         pong.right_plank.render(R)
         pong.ball.render(R)
 
-        left_dir_picker = pong.ball.pos.y - pong.left_plank.pos.y + pong.plank_height / 2 \
-            if pong.ball.pos.x <= 0 else math.sin(R.f / 10)
+        left_y_diff = pong.ball.pos.y - pong.left_plank.pos.y + pong.plank_height / 2
+        left_dir = left_y_diff if pong.ball.pos.x <= 0 else sin(f / 10)
 
-        right_dir_picker = pong.ball.pos.y - pong.right_plank.pos.y + pong.plank_height / 2 \
-            if pong.ball.pos.x >= 0 else math.sin(R.f / 10)
+        right_y_diff = pong.ball.pos.y - pong.right_plank.pos.y + pong.plank_height / 2
+        right_dir = right_y_diff if pong.ball.pos.x >= 0 else sin(f / 10)
 
-        left_plank_dir = math.copysign(1, left_dir_picker)
-        right_plank_dir = math.copysign(1, right_dir_picker)
+        left_plank_dir = copysign(1, left_dir)
+        right_plank_dir = copysign(1, right_dir)
 
         if not pong.game_over:
             pong.tick(left_plank_dir, right_plank_dir)
 
-        return R.canvas, pong.game_over
+        will_reset = pong.game_over or f % seq_len == 0
 
-    return R, get_next_frame
+        yield R.canvas, pong.game_over, will_reset
+        R.clear()
+
+        if will_reset:
+            pong = new_pong()
+
+        f += 1
 
 
 if __name__ == '__main__':
-    R, get_next_frame = frame_generator()
-    first_frame = get_next_frame()
+    FPS = 1000
+    next_frame = get_frame_generator(W=50, H=50, seq_len=50)
 
-    print(first_frame)
+    Renderer.init_window()
 
-    @R
-    def loop(R):
-        _frame, _game_over = get_next_frame()
+    while Renderer.can_render():
+        sleep(1 / FPS)
+        frame, game_over, will_reset = next(next_frame)
+        Renderer.show_frame(frame)
+
+        if will_reset:
+            print('reset')
+        if game_over:
+            print('game over')
