@@ -20,29 +20,6 @@ class Renderer:
         self.origin_y = self.height / 2
         self.f = 0
 
-    def __call__(self, loop):
-        cv2.namedWindow(WIN_NAME, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(WIN_NAME, 800, 800)
-        cv2.moveWindow(WIN_NAME, 100, 100)
-
-        while True:
-            self.f += 1
-            cv2.imshow(WIN_NAME, self.canvas)
-            self.clear()
-
-            if cv2.waitKey(33) == -1:
-                try:
-                    loop(self)
-                except Exception as e:
-                    self.destroy()
-                    raise e
-            else:
-                self.destroy()
-                break
-
-    def destroy(self):
-        cv2.destroyWindow(WIN_NAME)
-
     def clear(self):
         self.canvas = np.zeros((self.width, self.height, 3))
 
@@ -62,3 +39,22 @@ class Renderer:
 
     def _origin_translate(self, x, y):
         return self.origin_x + x, self.origin_y - y
+
+    @staticmethod
+    def init_window():
+        cv2.namedWindow(WIN_NAME, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(WIN_NAME, 800, 800)
+        cv2.moveWindow(WIN_NAME, 100, 100)
+
+    @staticmethod
+    def can_render():
+        end = cv2.waitKey(33) != -1
+
+        if end:
+            cv2.destroyWindow(WIN_NAME)
+
+        return not end
+
+    @staticmethod
+    def show_frame(canvas):
+        cv2.imshow(WIN_NAME, canvas)
