@@ -140,7 +140,8 @@ class PONG:
         self.update_ball(self.ball)
 
 
-if __name__ == '__main__':
+def frame_generator():
+    R = Renderer(50, 50)
 
     fps = 1000
     pong = PONG(
@@ -149,8 +150,7 @@ if __name__ == '__main__':
         2
     )
 
-    @Renderer(50, 50)
-    def loop(R):
+    def get_next_frame():
         sleep(1 / fps)
 
         pong.left_plank.render(R)
@@ -168,3 +168,18 @@ if __name__ == '__main__':
 
         if not pong.game_over:
             pong.tick(left_plank_dir, right_plank_dir)
+
+        return R.canvas, pong.game_over
+
+    return R, get_next_frame
+
+
+if __name__ == '__main__':
+    R, get_next_frame = frame_generator()
+    first_frame = get_next_frame()
+
+    print(first_frame)
+
+    @R
+    def loop(R):
+        _frame, _game_over = get_next_frame()
