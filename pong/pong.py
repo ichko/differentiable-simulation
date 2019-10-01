@@ -1,7 +1,9 @@
 from math import sin, cos, copysign, sqrt, pi
-from renderer import Renderer
 from time import sleep, time
 from random import uniform, random as rand
+import numpy as np
+
+from renderer import Renderer
 
 
 class Vector:
@@ -90,8 +92,8 @@ class PONG:
 
         self.ball = Ball(0, 0, self.ball_size, b_dir)
 
-    def update_plank(self, plank, inpt):
-        plank.pos.y += inpt * plank.speed
+    def update_plank(self, plank, inp):
+        plank.pos.y += inp * plank.speed
 
         if plank.pos.y > self.height / 2:
             plank.pos.y = self.height / 2
@@ -140,65 +142,86 @@ class PONG:
         self.update_ball(self.ball)
 
 
-def get_frame_generator(W, H, seq_len):
+def simulate_single_game(W, H, seq_len):
     R = Renderer(W, H)
 
-    def new_pong(b_dir): return PONG(
+    direction = uniform(0.1, pi / 2 - 0.1)
+    pong = PONG(
         w=W, h=H, pw=5, ph=15,
-        bs=2, b_dir=b_dir
+        bs=2, b_dir=direction
     )
 
+    yield direction
+
+    for f in range(seq_len):
+        pong.left_plank.render(R)
+        pong.right_plank.render(R)
+        pong.ball.render(R)
+
+        left_y_diff = pong.ball.pos.y - pong.left_plank.pos.y + \
+            pong.plank_height / 2
+        left_dir = left_y_diff if pong.ball.pos.x <= 0 else sin(f / 10)
+
+        right_y_diff = pong.ball.pos.y - pong.right_plank.pos.y + \
+            pong.plank_height / 2
+        right_dir = right_y_diff if pong.ball.pos.x >= 0 else sin(f / 10)
+
+        left_plank_dir = copysign(1, left_dir)
+        right_plank_dir = copysign(1, right_dir)
+
+        if not pong.game_over:
+            pong.tick(left_plank_dir, right_plank_dir)
+
+        yield R.canvas, pong.game_over
+        R.clear()
+
+
+def frame_generator(W, H, max_seq_len):
     while True:
-        direction = uniform(0.1, pi / 2 - 0.1)
-        pong = new_pong(direction)
-        f = 1
+        game = simulate_single_game(W, H, max_seq_len)
+        direction = next(game)
 
-        yield 'new_game', direction
-
-        while not pong.game_over and f % seq_len != 0:
-            pong.left_plank.render(R)
-            pong.right_plank.render(R)
-            pong.ball.render(R)
-
-            left_y_diff = pong.ball.pos.y - pong.left_plank.pos.y + pong.plank_height / 2
-            left_dir = left_y_diff if pong.ball.pos.x <= 0 else sin(f / 10)
-
-            right_y_diff = pong.ball.pos.y - pong.right_plank.pos.y + pong.plank_height / 2
-            right_dir = right_y_diff if pong.ball.pos.x >= 0 else sin(f / 10)
-
-            left_plank_dir = copysign(1, left_dir)
-            right_plank_dir = copysign(1, right_dir)
-
-            if not pong.game_over:
-                pong.tick(left_plank_dir, right_plank_dir)
-
-            yield 'new_frame', (R.canvas, pong.game_over)
-            R.clear()
-
-            f += 1
+        for frame, game_over in game:
+            yield direction, frame, game_over
+            if game_over:
+                break
 
 
-if __name__ == '__main__':
+def batch_generator(bs, W, H, max_seq_len):
+    def get_single_game():
+        game = simulate_single_game(W, H, max_seq_len)
+        direction = next(game)
+        return [[direction, frame, game_over] for frame, game_over in game]
+
+    while True:
+        yield np.array([get_single_game() for _ in range(bs)])
+
+
+def test_frame_generator():
     FPS = 1000
-
-    next_frame = get_frame_generator(
-        W=50,
-        H=50,
-        seq_len=500
+    next_frame = frame_generator(
+        W=50, H=50, max_seq_len=500
     )
 
     Renderer.init_window()
 
     while Renderer.can_render():
         sleep(1 / FPS)
-        data_type, data = next(next_frame)
+        _direction, frame, game_over = next(next_frame)
 
-        if data_type == 'new_game':
-            b_dir = data
-            print('new game with b_dir %s' % b_dir)
-        elif data_type == 'new_frame':
-            frame, game_over = data
-            Renderer.show_frame(frame)
+        Renderer.show_frame(frame)
+        if game_over:
+            print('game over')
 
-            if game_over:
-                print('game over')
+
+def test_batch_generator():
+    next_batch = batch_generator(
+        bs=64, W=50, H=50, max_seq_len=150
+    )
+    batch = next(next_batch)
+    print(batch.shape)
+
+
+if __name__ == '__main__':
+    test_batch_generator()
+    test_frame_generator()
