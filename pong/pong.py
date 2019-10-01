@@ -54,9 +54,9 @@ class Plank:
 
 
 class Ball:
-    def __init__(self, x, y, size):
+    def __init__(self, x, y, size, direction):
         self.pos = vec(x, y)
-        self.velocity = polar(uniform(0.1, pi / 2 - 0.1), 1.2)
+        self.velocity = polar(direction, 1)
         self.size = size
 
     def render(self, renderer):
@@ -69,7 +69,7 @@ class Ball:
 
 
 class PONG:
-    def __init__(self, w, h, pw, ph, bs):
+    def __init__(self, w, h, pw, ph, bs, b_dir):
         self.width = w
         self.height = h
 
@@ -88,7 +88,7 @@ class PONG:
             self.plank_width, self.plank_height
         )
 
-        self.ball = Ball(0, 0, self.ball_size)
+        self.ball = Ball(0, 0, self.ball_size, b_dir)
 
     def update_plank(self, plank, inpt):
         plank.pos.y += inpt * plank.speed
@@ -134,59 +134,71 @@ class PONG:
             ball.pos.y = bottom_wall
             ball.velocity.y *= -1
 
-    def tick(self, left_inpt=0, right_inpt=0):
-        self.update_plank(self.left_plank, left_inpt)
-        self.update_plank(self.right_plank, right_inpt)
+    def tick(self, left_input, right_input):
+        self.update_plank(self.left_plank, left_input)
+        self.update_plank(self.right_plank, right_input)
         self.update_ball(self.ball)
 
 
 def get_frame_generator(W, H, seq_len):
-    def new_pong(): return PONG(w=W, h=H, pw=5, ph=15, bs=2)
     R = Renderer(W, H)
 
-    pong = new_pong()
-    f = 0
+    def new_pong(b_dir): return PONG(
+        w=W, h=H, pw=5, ph=15,
+        bs=2, b_dir=b_dir
+    )
 
     while True:
-        pong.left_plank.render(R)
-        pong.right_plank.render(R)
-        pong.ball.render(R)
+        direction = uniform(0.1, pi / 2 - 0.1)
+        pong = new_pong(direction)
+        f = 1
 
-        left_y_diff = pong.ball.pos.y - pong.left_plank.pos.y + pong.plank_height / 2
-        left_dir = left_y_diff if pong.ball.pos.x <= 0 else sin(f / 10)
+        yield 'new_game', direction
 
-        right_y_diff = pong.ball.pos.y - pong.right_plank.pos.y + pong.plank_height / 2
-        right_dir = right_y_diff if pong.ball.pos.x >= 0 else sin(f / 10)
+        while not pong.game_over and f % seq_len != 0:
+            pong.left_plank.render(R)
+            pong.right_plank.render(R)
+            pong.ball.render(R)
 
-        left_plank_dir = copysign(1, left_dir)
-        right_plank_dir = copysign(1, right_dir)
+            left_y_diff = pong.ball.pos.y - pong.left_plank.pos.y + pong.plank_height / 2
+            left_dir = left_y_diff if pong.ball.pos.x <= 0 else sin(f / 10)
 
-        if not pong.game_over:
-            pong.tick(left_plank_dir, right_plank_dir)
+            right_y_diff = pong.ball.pos.y - pong.right_plank.pos.y + pong.plank_height / 2
+            right_dir = right_y_diff if pong.ball.pos.x >= 0 else sin(f / 10)
 
-        will_reset = pong.game_over or f % seq_len == 0
+            left_plank_dir = copysign(1, left_dir)
+            right_plank_dir = copysign(1, right_dir)
 
-        yield R.canvas, pong.game_over, will_reset
-        R.clear()
+            if not pong.game_over:
+                pong.tick(left_plank_dir, right_plank_dir)
 
-        if will_reset:
-            pong = new_pong()
+            yield 'new_frame', (R.canvas, pong.game_over)
+            R.clear()
 
-        f += 1
+            f += 1
 
 
 if __name__ == '__main__':
     FPS = 1000
-    next_frame = get_frame_generator(W=50, H=50, seq_len=50)
+
+    next_frame = get_frame_generator(
+        W=50,
+        H=50,
+        seq_len=500
+    )
 
     Renderer.init_window()
 
     while Renderer.can_render():
         sleep(1 / FPS)
-        frame, game_over, will_reset = next(next_frame)
-        Renderer.show_frame(frame)
+        data_type, data = next(next_frame)
 
-        if will_reset:
-            print('reset')
-        if game_over:
-            print('game over')
+        if data_type == 'new_game':
+            b_dir = data
+            print('new game with b_dir %s' % b_dir)
+        elif data_type == 'new_frame':
+            frame, game_over = data
+            Renderer.show_frame(frame)
+
+            if game_over:
+                print('game over')
