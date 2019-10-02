@@ -2,9 +2,10 @@ from math import sin, cos, copysign, sqrt, pi
 from time import sleep, time
 from random import uniform, random as rand
 import numpy as np
+from multiprocessing import Pool
 
 from renderer import Renderer
-from timer import timer
+from timer import print_timer
 
 
 class Vector:
@@ -143,7 +144,7 @@ class PONG:
         self.update_ball(self.ball)
 
 
-def simulate_single_game(W, H, seq_len):
+def single_game_generator(W, H, seq_len):
     R = Renderer(W, H)
 
     direction = uniform(0.1, pi / 2 - 0.1)
@@ -179,27 +180,52 @@ def simulate_single_game(W, H, seq_len):
         R.clear()
 
 
-def batch_generator(bs, W, H, seq_len):
+def get_batch(args):
+    bs, W, H, seq_len = args
+
     def get_single_game():
-        game = simulate_single_game(W, H, seq_len)
+        game = single_game_generator(W, H, seq_len)
         direction = next(game)
         controls, frames, game_overs = list(zip(*game))
 
         return direction, controls, frames, game_overs
 
-    while True:
-        direction, controls, frames, game_overs = list(
-            zip(*[get_single_game() for _ in range(bs)])
-        )
+    result = [get_single_game() for _ in range(bs)]
+    direction, controls, frames, game_overs = list(zip(*result))
 
-        yield np.array(direction), np.array(controls), \
-            np.array(frames)[:, :, :, :, 0], np.array(game_overs)
+    return np.array(direction), np.array(controls), \
+        np.array(frames)[:, :, :, :, 0], np.array(game_overs)
+
+
+def parallel_batch_generator(
+    bs, W, H, seq_len, max_iter, num_workers=1, chunk_size=1
+):
+    mapper = Pool(num_workers).map if num_workers > 1 else map
+    yield from mapper(
+        get_batch,
+        ((bs, W, H, seq_len) for _ in range(max_iter)),
+    )
 
 
 def test_batch_generator():
-    with timer as elapsed:
-        next_batch = batch_generator(
-            bs=150, W=50, H=50, seq_len=300
+    with print_timer('# Elapsed time %.2fs'):
+        for _batch in parallel_batch_generator(
+            W=50, H=50,
+            bs=128,
+            seq_len=10,
+            max_iter=100,
+            num_workers=8,
+        ):
+            pass
+
+    # bs=150, W=50, H=50, max_seq_len=300 ~ 2.7sec
+    with print_timer('# Elapsed time %.2fs'):
+        next_batch = parallel_batch_generator(
+            bs=128,
+            W=50,
+            H=50,
+            seq_len=100,
+            max_iter=1
         )
         d, c, f, go = next(next_batch)
 
@@ -208,9 +234,6 @@ def test_batch_generator():
         print(f.shape)
         print(go.shape)
 
-    print('Elapsed time %.2f sec.' % elapsed)
-    # bs=150, W=50, H=50, max_seq_len=300 ~ 2.7sec
-
 
 def test_simulate_single_game():
     FPS = 1000
@@ -218,7 +241,7 @@ def test_simulate_single_game():
 
     def frame_generator():
         while True:
-            game = simulate_single_game(W, H, max_seq_len)
+            game = single_game_generator(W, H, max_seq_len)
             direction = next(game)
 
             for _controls, frame, game_over in game:
@@ -240,4 +263,4 @@ def test_simulate_single_game():
 
 if __name__ == '__main__':
     test_batch_generator()
-    test_simulate_single_game()
+    # test_simulate_single_game()
