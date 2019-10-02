@@ -4,6 +4,7 @@ from random import uniform, random as rand
 import numpy as np
 
 from renderer import Renderer
+from timer import timer
 
 
 class Vector:
@@ -169,40 +170,63 @@ def simulate_single_game(W, H, seq_len):
         left_plank_dir = copysign(1, left_dir)
         right_plank_dir = copysign(1, right_dir)
 
-        if not pong.game_over:
-            pong.tick(left_plank_dir, right_plank_dir)
+        control = [left_plank_dir, right_plank_dir]
 
-        yield R.canvas, pong.game_over
+        if not pong.game_over:
+            pong.tick(*control)
+
+        yield control, R.canvas, pong.game_over
         R.clear()
 
 
-def frame_generator(W, H, max_seq_len):
-    while True:
-        game = simulate_single_game(W, H, max_seq_len)
-        direction = next(game)
-
-        for frame, game_over in game:
-            yield direction, frame, game_over
-            if game_over:
-                break
-
-
-def batch_generator(bs, W, H, max_seq_len):
+def batch_generator(bs, W, H, seq_len):
     def get_single_game():
-        game = simulate_single_game(W, H, max_seq_len)
+        game = simulate_single_game(W, H, seq_len)
         direction = next(game)
-        return [[direction, frame, game_over] for frame, game_over in game]
+        controls, frames, game_overs = list(zip(*game))
+
+        return direction, controls, frames, game_overs
 
     while True:
-        yield np.array([get_single_game() for _ in range(bs)])
+        direction, controls, frames, game_overs = list(
+            zip(*[get_single_game() for _ in range(bs)])
+        )
+
+        yield np.array(direction), np.array(controls), \
+            np.array(frames)[:, :, :, :, 0], np.array(game_overs)
 
 
-def test_frame_generator():
+def test_batch_generator():
+    with timer as elapsed:
+        next_batch = batch_generator(
+            bs=150, W=50, H=50, seq_len=300
+        )
+        d, c, f, go = next(next_batch)
+
+        print(d.shape)
+        print(c.shape)
+        print(f.shape)
+        print(go.shape)
+
+    print('Elapsed time %.2f sec.' % elapsed)
+    # bs=150, W=50, H=50, max_seq_len=300 ~ 2.7sec
+
+
+def test_simulate_single_game():
     FPS = 1000
-    next_frame = frame_generator(
-        W=50, H=50, max_seq_len=500
-    )
+    W, H, max_seq_len = 50, 50, 500
 
+    def frame_generator():
+        while True:
+            game = simulate_single_game(W, H, max_seq_len)
+            direction = next(game)
+
+            for _controls, frame, game_over in game:
+                yield direction, frame, game_over
+                if game_over:
+                    break
+
+    next_frame = frame_generator()
     Renderer.init_window()
 
     while Renderer.can_render():
@@ -214,14 +238,6 @@ def test_frame_generator():
             print('game over')
 
 
-def test_batch_generator():
-    next_batch = batch_generator(
-        bs=64, W=50, H=50, max_seq_len=150
-    )
-    batch = next(next_batch)
-    print(batch.shape)
-
-
 if __name__ == '__main__':
     test_batch_generator()
-    test_frame_generator()
+    test_simulate_single_game()
