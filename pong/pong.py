@@ -144,57 +144,63 @@ class PONG:
         self.update_ball(self.ball)
 
 
-def single_game_generator(W, H, seq_len):
-    R = Renderer(W, H)
+def games_generator(W, H, seq_len):
+    def single_game_generator():
+        R = Renderer(W, H)
 
-    direction = uniform(0.1, pi / 2 - 0.1)
-    pong = PONG(
-        w=W, h=H, pw=5, ph=15,
-        bs=2, b_dir=direction
-    )
+        direction = uniform(0.1, pi / 2 - 0.1)
+        pong = PONG(
+            w=W, h=H, pw=5, ph=15,
+            bs=2, b_dir=direction
+        )
 
-    yield direction
+        yield direction
 
-    for f in range(seq_len):
-        pong.left_plank.render(R)
-        pong.right_plank.render(R)
-        pong.ball.render(R)
+        for f in range(seq_len):
+            pong.left_plank.render(R)
+            pong.right_plank.render(R)
+            pong.ball.render(R)
 
-        left_y_diff = pong.ball.pos.y - pong.left_plank.pos.y + \
-            pong.plank_height / 2
-        left_dir = left_y_diff if pong.ball.pos.x <= 0 else sin(f / 10)
+            left_y_diff = pong.ball.pos.y - pong.left_plank.pos.y + \
+                pong.plank_height / 2
+            left_dir = left_y_diff if pong.ball.pos.x <= 0 else sin(f / 10)
 
-        right_y_diff = pong.ball.pos.y - pong.right_plank.pos.y + \
-            pong.plank_height / 2
-        right_dir = right_y_diff if pong.ball.pos.x >= 0 else sin(f / 10)
+            right_y_diff = pong.ball.pos.y - pong.right_plank.pos.y + \
+                pong.plank_height / 2
+            right_dir = right_y_diff if pong.ball.pos.x >= 0 else sin(f / 10)
 
-        left_plank_dir = copysign(1, left_dir)
-        right_plank_dir = copysign(1, right_dir)
+            left_plank_dir = copysign(1, left_dir)
+            right_plank_dir = copysign(1, right_dir)
 
-        control = [left_plank_dir, right_plank_dir]
+            control = [left_plank_dir, right_plank_dir]
 
-        if not pong.game_over:
-            pong.tick(*control)
+            if not pong.game_over:
+                pong.tick(*control)
 
-        yield control, R.canvas, pong.game_over
-        R.clear()
+            yield control, R.canvas[:, :, 0], pong.game_over
+            R.clear()
+
+    while True:
+        game = single_game_generator()
+        direction = next(game)
+        controls, frames, game_overs = list(zip(*game))
+
+        X, Y = (np.array(direction), np.array(controls)), \
+            (np.array(frames), np.array(game_overs))
+
+        yield X, Y
 
 
 def get_batch(args):
     bs, W, H, seq_len = args
-
-    def get_single_game():
-        game = single_game_generator(W, H, seq_len)
-        direction = next(game)
-        controls, frames, game_overs = list(zip(*game))
-
-        return direction, controls, frames, game_overs
-
-    result = [get_single_game() for _ in range(bs)]
+    generator = games_generator(W, H, seq_len)
+    result = [next(generator) for _ in range(bs)]
     direction, controls, frames, game_overs = list(zip(*result))
 
-    return np.array(direction), np.array(controls), \
-        np.array(frames)[:, :, :, :, 0], np.array(game_overs)
+    X, Y = (np.array(direction), np.array(controls)), \
+        (np.array(frames), np.array(game_overs))
+
+    return X, Y
 
 
 def parallel_batch_generator(
@@ -235,30 +241,31 @@ def test_batch_generator():
         print(go.shape)
 
 
-def test_simulate_single_game():
-    FPS = 1000
-    W, H, max_seq_len = 50, 50, 500
+# TODO: Fix... or not
+# def test_simulate_single_game():
+#     FPS = 1000
+#     W, H, max_seq_len = 50, 50, 500
 
-    def frame_generator():
-        while True:
-            game = single_game_generator(W, H, max_seq_len)
-            direction = next(game)
+#     def frame_generator():
+#         while True:
+#             game = single_game_generator(W, H, max_seq_len)
+#             direction = next(game)
 
-            for _controls, frame, game_over in game:
-                yield direction, frame, game_over
-                if game_over:
-                    break
+#             for _controls, frame, game_over in game:
+#                 yield direction, frame, game_over
+#                 if game_over:
+#                     break
 
-    next_frame = frame_generator()
-    Renderer.init_window()
+#     next_frame = frame_generator()
+#     Renderer.init_window()
 
-    while Renderer.can_render():
-        sleep(1 / FPS)
-        _direction, frame, game_over = next(next_frame)
+#     while Renderer.can_render():
+#         sleep(1 / FPS)
+#         _direction, frame, game_over = next(next_frame)
 
-        Renderer.show_frame(frame)
-        if game_over:
-            print('game over')
+#         Renderer.show_frame(frame)
+#         if game_over:
+#             print('game over')
 
 
 if __name__ == '__main__':
