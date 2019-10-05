@@ -1,4 +1,5 @@
 from renderer import Renderer
+from math import copysign, sin
 
 import tensorflow as tf
 import numpy as np
@@ -27,7 +28,7 @@ class Model:
         direction = np.array(direction).reshape((1, 1))
         self.init_dir = tf.convert_to_tensor(direction, dtype=tf.float32)
         self.first_time = True
-        
+
     def single_step_predict(self, user_input):
         user_input = np.array(user_input).reshape((1, 1, 2))
         user_input = tf.convert_to_tensor(user_input, dtype=tf.float32)
@@ -48,22 +49,29 @@ class Model:
         f2 = self.frames2(f1)
         g1 = self.game_over1(x3)
         g2 = self.game_over2(g1)
-        
+
         return f2.numpy().reshape(50, 50), g2.numpy()
 
 if __name__ == '__main__':
-    keras_network = tf.keras.models.load_model('LSTM3_PONG.hdf5')
-    keras_network.summary()
-    print(tf.__version__)
-    
+    keras_network = tf.keras.models.load_model('STATEFUL_LSTM3_PONG.hdf5')
+
     model = Model(keras_network)
     model.init(0.4)
     Renderer.init_window()
 
+    f = 0
     while Renderer.can_render():
-        frame, _ = model.single_step_predict([-1, 1])
+        f += 1
+
+        left_dir = copysign(1, sin(f / 10))
+        right_dir = copysign(1, sin(f / 12 + 1.2))
+
+        print('LEFT: [%s]  --  RIGHT: [%s]' % (' UP ' if left_dir > 0 else 'DOWN',
+                                               ' UP ' if right_dir > 0 else 'DOWN'))
+
+        frame, _ = model.single_step_predict([left_dir, right_dir])
         empty_channel = np.zeros_like(frame)
-        rgb_frame = np.stack((frame, empty_channel, empty_channel), axis=-1)
-        r = np.random.rand(50, 50, 3)
-        
-        Renderer.show_frame(r)
+
+        rgb_frame = np.stack((frame / 2, frame > 0.5, frame > 0.2), axis=-1)
+
+        Renderer.show_frame(rgb_frame)
