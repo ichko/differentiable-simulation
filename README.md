@@ -3,7 +3,7 @@ Learning to simulate complex processes with neural networks.
 
 ---
 
-This repo contains materials for for my masters project on learning statefull simulations with deep differentiable models. The focus will be to train a neural network to be an end-to-end game.
+This repo contains materials for my masters project on learning statefull simulations with deep differentiable models. The focus will be to train a neural network to be an end-to-end game.
 
 ## Setup
 The abstraction for a simulation I will look at is as follows:
