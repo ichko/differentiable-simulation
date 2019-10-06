@@ -38,6 +38,15 @@ I recon it will be interesting to analyze how different parts of the state influ
      - State<sub>t</sub> = DNN(input<sub>t</sub>, state<sub>t-1</sub>)
      - Might play well with the diluted RNN.
 
+## Examples of progress so far
+
+not much but it's honest work
+
+ - Split screen view of the true and the predicted state of the simulation.
+    ![split screen](assets/split_screen_view.gif)
+ - Up - True frame, Down - Predicted frame
+    ![training progress](assets/training_progress.png)
+
 ## TODOs
  - Optimize and refactor input pipeline
  - Research OpenAI gyms [here](https://gym.openai.com/envs/Pong-v0/)
