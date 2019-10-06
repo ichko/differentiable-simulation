@@ -13,7 +13,7 @@ The abstraction for a simulation I will look at is as follows:
  - changes the state based on the input
  - and produces an output, in the case of the game this would be the rendered frame of the game at that time
  
-Classic *init() -> whtile(true) { update() }* setup.
+Classic `init() -> whtile(true) { update() }` setup.
 
 This fits really well with the shape of the data that RNNs are designed to model so this woould naturally be my first experiment to try.
 
@@ -21,7 +21,7 @@ Concretely the game I am going to attempt to model is PONG. This game can be des
 I recon it will be interesting to analyze how different parts of the state influence the output.
 
 ## Ideas for research
- - Pyramidal RNN stacking
+ - [DilutedRNN](https://github.com/code-terminator/DilatedRNN)
      - Let high level RNN cells observe only parts of the sequence (e.g. only every second output of the RNN below it).
      - Idea being that these cells will hold long term state that is updated less frequently. 
      - It will be easier for the gradient from the front to propagate to the back since the higher level sequences will be shorter.
@@ -34,9 +34,10 @@ I recon it will be interesting to analyze how different parts of the state influ
      - Start with short sequences and increase the length in the process of learning.
      - Hypothesis is that this might speed up training for longer sequences.
      - Simmilar to the idea of ProGAN.
- - Internally stacked RNN.
-     - State<sub>t</sub> is complex DNN of input<sub>t</sub> and <sub>state</sub>
-     - Might play well with the pyramidally stacked RNN.
+ - Internally stacked RNN
+     - State<sub>t</sub> = DNN(input<sub>t</sub>, state<sub>t-1</sub>)
+     - Might play well with the diluted RNN.
 
 ## TODOs
- - Optimize input pipeline
+ - Optimize and refactor input pipeline
+ - Research OpenAI gyms [here](https://gym.openai.com/envs/Pong-v0/)
