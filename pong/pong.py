@@ -144,23 +144,40 @@ class PONG:
         self.update_ball(self.ball)
 
 
-def games_generator(W, H, seq_len):
-    def single_game_generator():
-        R = Renderer(W, H)
+class PONGSimultation:
+    def __init__(self, W, H, direction):
+        self.direction = direction
+        self.R = Renderer(W, H)
 
-        direction = uniform(0.1, pi / 2 - 0.1)
-        pong = PONG(
+        self.pong = PONG(
             w=W, h=H, pw=5, ph=15,
             bs=2, b_dir=direction
         )
 
+
+    def tick(self, controls):
+        self.R.clear()
+
+        self.pong.left_plank.render(self.R)
+        self.pong.right_plank.render(self.R)
+        self.pong.ball.render(self.R)
+
+        # if not self.pong.game_over:
+        self.pong.tick(*controls)
+
+        return self.R.canvas[:, :, 0], self.pong.game_over
+
+
+
+def games_generator(W, H, seq_len):
+    def single_game_generator():
+        direction = uniform(0.1, pi / 2 - 0.1)
+        simulation = PONGSimultation(W, H, direction)
+        pong = simulation.pong
+
         yield direction
 
         for f in range(seq_len):
-            pong.left_plank.render(R)
-            pong.right_plank.render(R)
-            pong.ball.render(R)
-
             left_y_diff = pong.ball.pos.y - pong.left_plank.pos.y + \
                 pong.plank_height / 2
             left_dir = left_y_diff if pong.ball.pos.x <= 0 else sin(f / 10)
@@ -172,13 +189,10 @@ def games_generator(W, H, seq_len):
             left_plank_dir = copysign(1, left_dir)
             right_plank_dir = copysign(1, right_dir)
 
-            control = [left_plank_dir, right_plank_dir]
+            controls = [left_plank_dir, right_plank_dir]
+            frame, game_over = simulation.tick(controls)
 
-            if not pong.game_over:
-                pong.tick(*control)
-
-            yield control, R.canvas[:, :, 0], pong.game_over
-            R.clear()
+            yield controls, frame, game_over
 
     while True:
         game = single_game_generator()
