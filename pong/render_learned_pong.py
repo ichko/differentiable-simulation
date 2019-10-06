@@ -4,6 +4,8 @@ from math import copysign, sin
 import tensorflow as tf
 import numpy as np
 
+from pong import PONGSimultation
+
 tf.enable_eager_execution()
 
 
@@ -53,25 +55,35 @@ class Model:
         return f2.numpy().reshape(50, 50), g2.numpy()
 
 if __name__ == '__main__':
-    keras_network = tf.keras.models.load_model('STATEFUL_LSTM3_PONG.hdf5')
+    keras_network = tf.keras.models.load_model('STATEFUL_LSTM3_PONG_TANH.hdf5')
+
+    direction = 0.4
 
     model = Model(keras_network)
-    model.init(0.4)
-    Renderer.init_window()
+    model.init(direction)
+    simulation = PONGSimultation(50, 50, direction)
+
+    Renderer.init_window(1600, 800)
 
     f = 0
     while Renderer.can_render():
         f += 1
 
-        left_dir = copysign(1, sin(f / 10))
-        right_dir = copysign(1, sin(f / 12 + 1.2))
+        controls = [
+            copysign(1, sin(f / 16)),
+            copysign(1, sin(f / 20 + 1.2))
+        ]
 
-        print('LEFT: [%s]  --  RIGHT: [%s]' % (' UP ' if left_dir > 0 else 'DOWN',
-                                               ' UP ' if right_dir > 0 else 'DOWN'))
+        print('LEFT: [%s]  --  RIGHT: [%s]' % tuple(' UP ' if i > 0 else 'DOWN' for i in controls))
 
-        frame, _ = model.single_step_predict([left_dir, right_dir])
-        empty_channel = np.zeros_like(frame)
+        predicted_frame, _ = model.single_step_predict(controls)
+        real_frame, _ = simulation.tick(controls)
 
-        rgb_frame = np.stack((frame / 2, frame > 0.5, frame > 0.2), axis=-1)
+        rgb_predicted_frame = np.stack(
+            (predicted_frame * 5, predicted_frame > 0.5, predicted_frame > 0.1),
+            axis=-1
+        )
+        rgb_real_frame = np.stack([real_frame] * 3, axis=-1)
+        split_screen = np.concatenate((rgb_predicted_frame, rgb_real_frame), axis=1)
 
-        Renderer.show_frame(rgb_frame)
+        Renderer.show_frame(split_screen)

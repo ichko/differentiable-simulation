@@ -41,9 +41,9 @@ class Renderer:
         return self.origin_x + x, self.origin_y - y
 
     @staticmethod
-    def init_window():
+    def init_window(W=800, H=800):
         cv2.namedWindow(WIN_NAME, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(WIN_NAME, 800, 800)
+        cv2.resizeWindow(WIN_NAME, W, H)
         cv2.moveWindow(WIN_NAME, 100, 100)
 
     @staticmethod
