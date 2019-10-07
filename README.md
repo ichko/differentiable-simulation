@@ -55,3 +55,18 @@ not much but it's honest work
 
 - Optimize and refactor input pipeline
 - Research OpenAI gyms [here](https://gym.openai.com/envs/Pong-v0/)
+
+## Resources
+
+- Papers
+
+  - [Neural Turing Machines](https://arxiv.org/abs/1410.5401)
+  - [End-To-End Memory Networks](http://papers.nips.cc/paper/5846-end-to-end-memorynetworks)
+  - [Memory Networks](https://arxiv.org/abs/1410.3916)
+
+- Videos
+
+  - [Neural Network Learns The Physics of Fluids and Smoke | Two Minute Papers #118](https://www.youtube.com/watch?v=iOWamCtnwTc)
+  - [Building Machines that Learn & Think Like People - Prof. Josh Tenenbaum ICML2018](https://www.youtube.com/watch?v=RB78vRUO6X8)
+  - [Differentiable Neural Computer, NIPS 2016 | Alex Graves, DeepMind](https://www.youtube.com/watch?v=6SmN8dt8WeQ) - [Symposium: Deep Learning - Alex Graves](https://www.youtube.com/watch?v=_H0i0IhEO2g)
+  - [Neural Turing Machines](https://www.youtube.com/watch?v=Ensr41dfEp0)
