@@ -58,11 +58,13 @@ not much but it's honest work
 
 ## Resources
 
-- Papers
+- Articles/Papers
 
   - [Neural Turing Machines](https://arxiv.org/abs/1410.5401)
   - [End-To-End Memory Networks](http://papers.nips.cc/paper/5846-end-to-end-memorynetworks)
   - [Memory Networks](https://arxiv.org/abs/1410.3916)
+  - [Differentiable neural computer](https://en.wikipedia.org/wiki/Differentiable_neural_computer)
+  - [Differentiable neural computers](https://deepmind.com/blog/article/differentiable-neural-computers)
 
 - Videos
 
@@ -70,3 +72,4 @@ not much but it's honest work
   - [Building Machines that Learn & Think Like People - Prof. Josh Tenenbaum ICML2018](https://www.youtube.com/watch?v=RB78vRUO6X8)
   - [Differentiable Neural Computer, NIPS 2016 | Alex Graves, DeepMind](https://www.youtube.com/watch?v=6SmN8dt8WeQ) - [Symposium: Deep Learning - Alex Graves](https://www.youtube.com/watch?v=_H0i0IhEO2g)
   - [Neural Turing Machines](https://www.youtube.com/watch?v=Ensr41dfEp0)
+  - [RNN Symposium 2016: Alex Graves - Differentiable Neural Computer](https://www.youtube.com/watch?v=steioHoiEms)
