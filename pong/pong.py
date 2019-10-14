@@ -171,20 +171,22 @@ class PONGSimultation:
 
 def games_generator(W, H, seq_len):
     def single_game_generator():
-        direction = uniform(0.1, pi / 2 - 0.1)
+        direction = uniform(0, 2 * pi)
         simulation = PONGSimultation(W, H, direction)
         pong = simulation.pong
 
         yield direction
 
-        for f in range(seq_len):
+        f = uniform(0, 2 *  pi)
+        for _ in range(seq_len):
+            f += 0.1
             left_y_diff = pong.ball.pos.y - pong.left_plank.pos.y + \
                 pong.plank_height / 2
-            left_dir = left_y_diff if pong.ball.pos.x <= 0 else sin(f / 10)
+            left_dir = left_y_diff if pong.ball.pos.x <= 0 else sin(f)
 
             right_y_diff = pong.ball.pos.y - pong.right_plank.pos.y + \
                 pong.plank_height / 2
-            right_dir = right_y_diff if pong.ball.pos.x >= 0 else sin(f / 10)
+            right_dir = right_y_diff if pong.ball.pos.x >= 0 else sin(f)
 
             left_plank_dir = copysign(1, left_dir)
             right_plank_dir = copysign(1, right_dir)
@@ -205,49 +207,14 @@ def games_generator(W, H, seq_len):
         yield X, Y
 
 
-def get_batch(args):
-    bs, W, H, seq_len = args
-    generator = games_generator(W, H, seq_len)
-    result = [next(generator) for _ in range(bs)]
-    direction, controls, frames, game_overs = list(zip(*result))
-
-    X, Y = (np.array(direction), np.array(controls)), \
-        (np.array(frames), np.array(game_overs))
-
-    return X, Y
-
-
-def parallel_batch_generator(
-    bs, W, H, seq_len, max_iter, num_workers=1, chunk_size=1
-):
-    mapper = Pool(num_workers).map if num_workers > 1 else map
-    yield from mapper(
-        get_batch,
-        ((bs, W, H, seq_len) for _ in range(max_iter)),
-    )
-
-
-def test_batch_generator():
+def test_games_generator():
+    generator = games_generator(W=50, H=50, seq_len=10)
     with print_timer('# Elapsed time %.2fs'):
-        for _batch in parallel_batch_generator(
-            W=50, H=50,
-            bs=128,
-            seq_len=10,
-            max_iter=100,
-            num_workers=8,
-        ):
-            pass
+        for _ in range(10_000):
+            _X, _Y = next(generator)
 
-    # bs=150, W=50, H=50, max_seq_len=300 ~ 2.7sec
     with print_timer('# Elapsed time %.2fs'):
-        next_batch = parallel_batch_generator(
-            bs=128,
-            W=50,
-            H=50,
-            seq_len=100,
-            max_iter=1
-        )
-        d, c, f, go = next(next_batch)
+        (d, c), (f, go) = next(generator)
 
         print(d.shape)
         print(c.shape)
@@ -283,5 +250,5 @@ def test_batch_generator():
 
 
 if __name__ == '__main__':
-    test_batch_generator()
+    test_games_generator()
     # test_simulate_single_game()
