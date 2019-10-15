@@ -6,6 +6,8 @@ import numpy as np
 
 from pong import PONGSimultation
 
+from matplotlib import cm
+
 tf.enable_eager_execution()
 
 
@@ -55,7 +57,7 @@ class Model:
         return f2.numpy().reshape(50, 50), g2.numpy()
 
 if __name__ == '__main__':
-    keras_network = tf.keras.models.load_model('STATEFUL_LSTM3_PONG_RELU-old.hdf5')
+    keras_network = tf.keras.models.load_model('STATEFUL_LSTM3_PONG_RELU_VARIED_INPUT.hdf5')
 
     direction = 0.4
 
@@ -78,12 +80,12 @@ if __name__ == '__main__':
 
         predicted_frame, _ = model.single_step_predict(controls)
         real_frame, _ = simulation.tick(controls)
+        
+        cmap = lambda x: cm.bwr(1 - x)[:,:,:3]
 
-        rgb_predicted_frame = np.stack(
-            (predicted_frame * 5, predicted_frame > 0.5, predicted_frame > 0.5),
-            axis=-1
-        )
-        rgb_real_frame = np.stack([real_frame] * 3, axis=-1)
+        rgb_predicted_frame = cmap(predicted_frame)
+        rgb_real_frame = cmap(real_frame)
+
         split_screen = np.concatenate((rgb_predicted_frame, rgb_real_frame), axis=1)
 
         Renderer.show_frame(split_screen)
