@@ -55,7 +55,7 @@ class Model:
         return f2.numpy().reshape(50, 50), g2.numpy()
 
 if __name__ == '__main__':
-    keras_network = tf.keras.models.load_model('STATEFUL_LSTM3_PONG_TANH.hdf5')
+    keras_network = tf.keras.models.load_model('STATEFUL_LSTM3_PONG_RELU-old.hdf5')
 
     direction = 0.4
 
@@ -80,7 +80,7 @@ if __name__ == '__main__':
         real_frame, _ = simulation.tick(controls)
 
         rgb_predicted_frame = np.stack(
-            (predicted_frame * 5, predicted_frame > 0.5, predicted_frame > 0.1),
+            (predicted_frame * 5, predicted_frame > 0.5, predicted_frame > 0.5),
             axis=-1
         )
         rgb_real_frame = np.stack([real_frame] * 3, axis=-1)
