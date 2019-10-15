@@ -71,6 +71,7 @@ not much but it's honest work
 
 - Articles/Papers
 
+  - [World Models](https://worldmodels.github.io)
   - [Neural Turing Machines](https://arxiv.org/abs/1410.5401)
   - [End-To-End Memory Networks](http://papers.nips.cc/paper/5846-end-to-end-memorynetworks)
   - [Memory Networks](https://arxiv.org/abs/1410.3916)
