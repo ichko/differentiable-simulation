@@ -154,7 +154,6 @@ class PONGSimultation:
             bs=2, b_dir=direction
         )
 
-
     def tick(self, controls):
         self.R.clear()
 
@@ -168,7 +167,6 @@ class PONGSimultation:
         return self.R.canvas[:, :, 0], self.pong.game_over
 
 
-
 def games_generator(W, H, seq_len):
     def single_game_generator():
         direction = uniform(0, 2 * pi)
@@ -177,7 +175,7 @@ def games_generator(W, H, seq_len):
 
         yield direction
 
-        f = uniform(0, 2 *  pi)
+        f = uniform(0, 2 * pi)
         for _ in range(seq_len):
             f += 0.1
             left_y_diff = pong.ball.pos.y - pong.left_plank.pos.y + \

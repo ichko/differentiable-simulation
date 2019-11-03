@@ -11,6 +11,9 @@ from matplotlib import cm
 tf.enable_eager_execution()
 
 
+def cmap(x): return cm.bwr(1 - x)[:, :, :3]
+
+
 class Model:
     def __init__(self, net):
         _user_input, _dir_input, transformed_user_input, \
@@ -56,16 +59,19 @@ class Model:
 
         return f2.numpy().reshape(50, 50), g2.numpy()
 
-if __name__ == '__main__':
-    keras_network = tf.keras.models.load_model('STATEFUL_LSTM3_PONG_RELU_VARIED_INPUT.hdf5')
 
-    direction = 0.4
+if __name__ == '__main__':
+    keras_network = tf.keras.models.load_model(
+        'STATEFUL_LSTM3_PONG_RELU_VARIED_INPUT.hdf5'
+    )
+
+    direction = 2.4
 
     model = Model(keras_network)
     model.init(direction)
     simulation = PONGSimultation(50, 50, direction)
 
-    Renderer.init_window(1600, 800)
+    Renderer.init_window(1000, 500)
 
     f = 0
     while Renderer.can_render():
@@ -76,16 +82,19 @@ if __name__ == '__main__':
             copysign(1, sin(f / 20 + 1.2))
         ]
 
-        print('LEFT: [%s]  --  RIGHT: [%s]' % tuple(' UP ' if i > 0 else 'DOWN' for i in controls))
+        print(
+            'LEFT: [%s]  --  RIGHT: [%s]' %
+            tuple(' UP ' if i > 0 else 'DOWN' for i in controls)
+        )
 
         predicted_frame, _ = model.single_step_predict(controls)
         real_frame, _ = simulation.tick(controls)
-        
-        cmap = lambda x: cm.bwr(1 - x)[:,:,:3]
 
         rgb_predicted_frame = cmap(predicted_frame)
         rgb_real_frame = cmap(real_frame)
 
-        split_screen = np.concatenate((rgb_predicted_frame, rgb_real_frame), axis=1)
+        split_screen = np.concatenate(
+            (rgb_predicted_frame, rgb_real_frame), axis=1
+        )
 
         Renderer.show_frame(split_screen)
