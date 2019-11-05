@@ -4,6 +4,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 import random
+import cv2
 
 
 def repeat_upsample(rgb_array, s=1):
@@ -11,15 +12,19 @@ def repeat_upsample(rgb_array, s=1):
 
 
 viewer = rendering.SimpleImageViewer()
-env = gym.make('Pong-v0')
+env = gym.make('PongDeterministic-v4')
 env.reset()
 
 while range(1000):
     time.sleep(1 / 30)
-    action = random.choices([1, 2, 3])[0]  # env.action_space.sample()
+    action = env.action_space.sample()
     observation, reward, done, info = env.step(action)
-    upscaled = repeat_upsample(observation, 3)
+    if done:
+        env.reset()
+    f = cv2.resize(observation, (80, 100), interpolation=cv2.INTER_LINEAR)
+    upscaled = repeat_upsample(f, 5)
     viewer.imshow(upscaled)
+
     # print(upscaled[:, :, 0].shape)
     # plt.imshow(upscaled)
     # plt.show()

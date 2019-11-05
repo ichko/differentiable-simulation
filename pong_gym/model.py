@@ -28,9 +28,18 @@ class Vision:
         output_size = np.prod(output_shape)
         print(output_size)
         self.projection = tf.keras.layers.Dense(
-            output_size,
+            64,
             activation='sigmoid',
             name='vision_projection'
+        )
+        self.projection = tf.keras.layers.Dense(
+            225,
+            activation='sigmoid',
+            name='vision_projection'
+        )
+        self.reshape = tf.keras.layers.Reshape(
+            (-1, 15, 15),
+            name='vision_reshape'
         )
         self.reshape = tf.keras.layers.Reshape(
             (-1, *output_shape),

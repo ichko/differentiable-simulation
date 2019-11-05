@@ -4,7 +4,7 @@ import gym
 
 
 def get_single_sequence(seq_len):
-    env = gym.make('Pong-v0')
+    env = gym.make('PongDeterministic-v4')
     env.reset()
     env.seed(0)
 
