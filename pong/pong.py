@@ -4,8 +4,8 @@ from random import uniform, random as rand
 import numpy as np
 from multiprocessing import Pool
 
-from renderer import Renderer
-from timer import print_timer
+from .renderer import Renderer
+from .timer import print_timer
 
 
 class Vector:
@@ -144,7 +144,7 @@ class PONG:
         self.update_ball(self.ball)
 
 
-class PONGSimultation:
+class PONGSimulation:
     def __init__(self, W, H, direction):
         self.direction = direction
         self.R = Renderer(W, H)
@@ -161,8 +161,8 @@ class PONGSimultation:
         self.pong.right_plank.render(self.R)
         self.pong.ball.render(self.R)
 
-        # if not self.pong.game_over:
-        self.pong.tick(*controls)
+        if not self.pong.game_over:
+            self.pong.tick(*controls)
 
         return self.R.canvas[:, :, 0], self.pong.game_over
 
@@ -170,7 +170,7 @@ class PONGSimultation:
 def games_generator(W, H, seq_len):
     def single_game_generator():
         direction = uniform(0, 2 * pi)
-        simulation = PONGSimultation(W, H, direction)
+        simulation = PONGSimulation(W, H, direction)
         pong = simulation.pong
 
         yield direction
@@ -221,32 +221,20 @@ def test_games_generator():
 
 
 # TODO: Fix... or not
-# def test_simulate_single_game():
-#     FPS = 1000
-#     W, H, max_seq_len = 50, 50, 500
+def test_simulate_single_game():
+    FPS = 1000
+    _, (frames, _) = next(games_generator(40, 40, 256))
 
-#     def frame_generator():
-#         while True:
-#             game = single_game_generator(W, H, max_seq_len)
-#             direction = next(game)
+    Renderer.init_window(500, 500)
 
-#             for _controls, frame, game_over in game:
-#                 yield direction, frame, game_over
-#                 if game_over:
-#                     break
+    i = 0
+    while Renderer.can_render():
+        i += 1
+        sleep(1 / FPS)
 
-#     next_frame = frame_generator()
-#     Renderer.init_window()
-
-#     while Renderer.can_render():
-#         sleep(1 / FPS)
-#         _direction, frame, game_over = next(next_frame)
-
-#         Renderer.show_frame(frame)
-#         if game_over:
-#             print('game over')
+        Renderer.show_frame(frames[i])
 
 
 if __name__ == '__main__':
     test_games_generator()
-    # test_simulate_single_game()
+    test_simulate_single_game()
