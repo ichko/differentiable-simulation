@@ -186,8 +186,8 @@ def games_generator(W, H, seq_len):
                 pong.plank_height / 2
             right_dir = right_y_diff if pong.ball.pos.x >= 0 else sin(f)
 
-            left_plank_dir = copysign(1, left_dir)
-            right_plank_dir = copysign(1, right_dir)
+            left_plank_dir = copysign(1, left_dir) * int(uniform(0, 1) > 0.5)
+            right_plank_dir = copysign(1, right_dir) * int(uniform(0, 1) > 0.5)
 
             controls = [left_plank_dir, right_plank_dir]
             frame, game_over = simulation.tick(controls)
