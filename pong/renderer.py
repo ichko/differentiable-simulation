@@ -47,8 +47,12 @@ class Renderer:
         cv2.moveWindow(WIN_NAME, 100, 100)
 
     @staticmethod
-    def can_render():
-        end = cv2.waitKey(33) != -1
+    def key_pressed(key):
+        return cv2.waitKey(33) == ord(key)
+
+    @classmethod
+    def can_render(cls):
+        end = cls.key_pressed('q')
 
         if end:
             cv2.destroyWindow(WIN_NAME)
