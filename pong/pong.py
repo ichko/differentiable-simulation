@@ -1,11 +1,15 @@
 from math import sin, cos, copysign, sqrt, pi
 from time import sleep, time
-from random import uniform, random as rand
+from random import uniform, random as rand, choice
 import numpy as np
 from multiprocessing import Pool
 
-from .renderer import Renderer
-from .timer import print_timer
+try:
+    from .renderer import Renderer
+    from .timer import print_timer
+except:
+    from renderer import Renderer
+    from timer import print_timer
 
 
 class Vector:
@@ -167,7 +171,7 @@ class PONGSimulation:
         return self.R.canvas[:, :, 0], self.pong.game_over
 
 
-def games_generator(W, H, seq_len):
+def games_generator(W, H, seq_len, stochasticity=0.5):
     def single_game_generator():
         direction = uniform(0, 2 * pi)
         simulation = PONGSimulation(W, H, direction)
@@ -186,8 +190,16 @@ def games_generator(W, H, seq_len):
                 pong.plank_height / 2
             right_dir = right_y_diff if pong.ball.pos.x >= 0 else sin(f)
 
-            left_plank_dir = copysign(1, left_dir) * int(uniform(0, 1) > 0.5)
-            right_plank_dir = copysign(1, right_dir) * int(uniform(0, 1) > 0.5)
+            random_movement_left = choice([-1, 0, 1])
+            random_movement_right = choice([-1, 0, 1])
+
+            left_plank_dir = random_movement_left if \
+                uniform(0, 1) < stochasticity else \
+                copysign(1, left_dir)
+
+            right_plank_dir = random_movement_right if \
+                uniform(0, 1) < stochasticity else \
+                copysign(1, right_dir)
 
             controls = [left_plank_dir, right_plank_dir]
             frame, game_over = simulation.tick(controls)
@@ -220,10 +232,9 @@ def test_games_generator():
         print(go.shape)
 
 
-# TODO: Fix... or not
 def test_simulate_single_game():
     FPS = 1000
-    _, (frames, _) = next(games_generator(40, 40, 256))
+    _, (frames, _) = next(games_generator(40, 40, 256, 8))
 
     Renderer.init_window(500, 500)
 
