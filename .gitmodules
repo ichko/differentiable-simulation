@@ -1,0 +1,3 @@
+[submodule "DilatedRNN"]
+	path = DilatedRNN
+	url = https://github.com/code-terminator/DilatedRNN
