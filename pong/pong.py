@@ -2,7 +2,6 @@ from math import sin, cos, copysign, sqrt, pi
 from time import sleep, time
 from random import uniform, random as rand, choice
 import numpy as np
-from multiprocessing import Pool
 
 try:
     from .renderer import Renderer
@@ -29,8 +28,8 @@ class Vector:
 
     @property
     def noramalized(self):
-        len = self.length
-        return Vector(self.x / len, self.y / len)
+        length = self.length
+        return Vector(self.x / length, self.y / length)
 
     def __repr__(self):
         return 'vec(%f, %f)' % (self.x, self.y)
@@ -41,10 +40,7 @@ def vec(x=0, y=0):
 
 
 def polar(angle, magnitude):
-    return vec(
-        cos(angle) * magnitude,
-        sin(angle) * magnitude
-    )
+    return vec(cos(angle) * magnitude, sin(angle) * magnitude)
 
 
 class Plank:
@@ -55,10 +51,7 @@ class Plank:
         self.speed = 1
 
     def render(self, renderer):
-        renderer.rect(
-            self.pos.x, self.pos.y,
-            self.width, self.height
-        )
+        renderer.rect(self.pos.x, self.pos.y, self.width, self.height)
 
 
 class Ball:
@@ -68,12 +61,8 @@ class Ball:
         self.size = size
 
     def render(self, renderer):
-        renderer.rect(
-            self.pos.x - self.size,
-            self.pos.y + self.size,
-            self.size * 2,
-            self.size * 2
-        )
+        renderer.rect(self.pos.x - self.size, self.pos.y + self.size,
+                      self.size * 2, self.size * 2)
 
 
 class PONG:
@@ -86,15 +75,11 @@ class PONG:
         self.ball_size = bs
         self.game_over = False
 
-        self.left_plank = Plank(
-            -self.width / 2, 0,
-            self.plank_width, self.plank_height
-        )
+        self.left_plank = Plank(-self.width / 2, 0, self.plank_width,
+                                self.plank_height)
 
-        self.right_plank = Plank(
-            self.width / 2 - self.plank_width, 0,
-            self.plank_width, self.plank_height
-        )
+        self.right_plank = Plank(self.width / 2 - self.plank_width, 0,
+                                 self.plank_width, self.plank_height)
 
         self.ball = Ball(0, 0, self.ball_size, b_dir)
 
@@ -117,13 +102,13 @@ class PONG:
         bottom_wall = -self.height / 2 + ball.size + 1
 
         left_h_constraint = ball.pos.y - ball.size < self.left_plank.pos.y and \
-            ball.pos.y + ball.size > self.left_plank.pos.y - self.left_plank.height
+                            ball.pos.y + ball.size > self.left_plank.pos.y - self.left_plank.height
 
         right_h_constraint = ball.pos.y - ball.size < self.right_plank.pos.y and \
-            ball.pos.y + ball.size > self.right_plank.pos.y - self.right_plank.height
+                             ball.pos.y + ball.size > self.right_plank.pos.y - self.right_plank.height
 
         if not left_h_constraint and ball.pos.x < left_wall or \
-           not right_h_constraint and ball.pos.x > right_wall:
+                not right_h_constraint and ball.pos.x > right_wall:
             self.game_over = True
 
         if ball.pos.x > right_wall:
@@ -153,10 +138,7 @@ class PONGSimulation:
         self.direction = direction
         self.R = Renderer(W, H)
 
-        self.pong = PONG(
-            w=W, h=H, pw=5, ph=15,
-            bs=2, b_dir=direction
-        )
+        self.pong = PONG(w=W, h=H, pw=5, ph=15, bs=2, b_dir=direction)
 
     def tick(self, controls):
         self.R.clear()
@@ -171,54 +153,59 @@ class PONGSimulation:
         return self.R.canvas[:, :, 0], self.pong.game_over
 
 
-def games_generator(W, H, seq_len, stochasticity=0.5):
-    def single_game_generator():
-        direction = uniform(0, 2 * pi)
-        simulation = PONGSimulation(W, H, direction)
-        pong = simulation.pong
+class StatefulPongGenerator:
+    def __init__(self, W, H, seq_len, stochasticity=0.5):
+        self.seq_len = seq_len
+        self.W = W
+        self.H = H
+        self.stochasticity = stochasticity
 
-        yield direction
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        direction = uniform(0, 2 * pi)
+        simulation = PONGSimulation(self.W, self.H, direction)
+        pong = simulation.pong
+        controls = []
+        frames = []
+        outcomes = []
 
         f = uniform(0, 2 * pi)
-        for _ in range(seq_len):
+        for _ in range(self.seq_len):
             f += 0.1
             left_y_diff = pong.ball.pos.y - pong.left_plank.pos.y + \
-                pong.plank_height / 2
+                          pong.plank_height / 2
             left_dir = left_y_diff if pong.ball.pos.x <= 0 else sin(f)
 
             right_y_diff = pong.ball.pos.y - pong.right_plank.pos.y + \
-                pong.plank_height / 2
+                           pong.plank_height / 2
             right_dir = right_y_diff if pong.ball.pos.x >= 0 else sin(f)
 
             random_movement_left = choice([-1, 0, 1])
             random_movement_right = choice([-1, 0, 1])
 
             left_plank_dir = random_movement_left if \
-                uniform(0, 1) < stochasticity else \
+                uniform(0, 1) < self.stochasticity else \
                 copysign(1, left_dir)
 
             right_plank_dir = random_movement_right if \
-                uniform(0, 1) < stochasticity else \
+                uniform(0, 1) < self.stochasticity else \
                 copysign(1, right_dir)
 
-            controls = [left_plank_dir, right_plank_dir]
-            frame, game_over = simulation.tick(controls)
+            control = [left_plank_dir, right_plank_dir]
+            frame, game_over = simulation.tick(control)
 
-            yield controls, frame, game_over
+            controls.append(control)
+            frames.append(frame)
+            outcomes.append(game_over)
 
-    while True:
-        game = single_game_generator()
-        direction = next(game)
-        controls, frames, game_overs = list(zip(*game))
-
-        X, Y = (np.array(direction), np.array(controls)), \
-            (np.array(frames), np.array(game_overs))
-
-        yield X, Y
+        return (np.array(direction), np.array(controls)), \
+               (np.array(frames), np.array(outcomes))
 
 
 def test_games_generator():
-    generator = games_generator(W=50, H=50, seq_len=10)
+    generator = StatefulPongGenerator(50, 50, 128)
     with print_timer('# Elapsed time %.2fs'):
         for _ in range(10_000):
             _X, _Y = next(generator)
@@ -234,7 +221,7 @@ def test_games_generator():
 
 def test_simulate_single_game():
     FPS = 1000
-    _, (frames, _) = next(games_generator(40, 40, 256, 8))
+    _, (frames, _) = next(StatefulPongGenerator(50, 50, 128))
 
     Renderer.init_window(500, 500)
 
