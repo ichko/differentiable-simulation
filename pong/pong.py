@@ -75,11 +75,15 @@ class PONG:
         self.ball_size = bs
         self.game_over = False
 
-        self.left_plank = Plank(-self.width / 2, 0, self.plank_width,
-                                self.plank_height)
+        self.left_plank = Plank(
+            -self.width / 2, 0, self.plank_width,
+            self.plank_height
+        )
 
-        self.right_plank = Plank(self.width / 2 - self.plank_width, 0,
-                                 self.plank_width, self.plank_height)
+        self.right_plank = Plank(
+            self.width / 2 - self.plank_width, 0,
+            self.plank_width, self.plank_height
+        )
 
         self.ball = Ball(0, 0, self.ball_size, b_dir)
 
@@ -102,10 +106,10 @@ class PONG:
         bottom_wall = -self.height / 2 + ball.size + 1
 
         left_h_constraint = ball.pos.y - ball.size < self.left_plank.pos.y and \
-                            ball.pos.y + ball.size > self.left_plank.pos.y - self.left_plank.height
+            ball.pos.y + ball.size > self.left_plank.pos.y - self.left_plank.height
 
         right_h_constraint = ball.pos.y - ball.size < self.right_plank.pos.y and \
-                             ball.pos.y + ball.size > self.right_plank.pos.y - self.right_plank.height
+            ball.pos.y + ball.size > self.right_plank.pos.y - self.right_plank.height
 
         if not left_h_constraint and ball.pos.x < left_wall or \
                 not right_h_constraint and ball.pos.x > right_wall:
