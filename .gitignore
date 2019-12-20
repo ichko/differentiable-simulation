@@ -4,6 +4,6 @@ __pycache__
 .vscode
 .models
 *.hdf5
-logs
+# logs
 .idea
 .checkpoint
