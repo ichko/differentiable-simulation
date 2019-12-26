@@ -179,11 +179,11 @@ class StatefulPongGenerator:
         for _ in range(self.seq_len):
             f += 0.1
             left_y_diff = pong.ball.pos.y - pong.left_plank.pos.y + \
-                          pong.plank_height / 2
+                pong.plank_height / 2
             left_dir = left_y_diff if pong.ball.pos.x <= 0 else sin(f)
 
             right_y_diff = pong.ball.pos.y - pong.right_plank.pos.y + \
-                           pong.plank_height / 2
+                pong.plank_height / 2
             right_dir = right_y_diff if pong.ball.pos.x >= 0 else sin(f)
 
             random_movement_left = choice([-1, 0, 1])
