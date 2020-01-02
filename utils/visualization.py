@@ -25,4 +25,3 @@ def plot_pairwise_frames(sampler, hypotheses, num_samples=10):
         r.set_yticklabels([])
 
     fig.tight_layout(pad=0, w_pad=0, h_pad=0)
-    plt.show()
