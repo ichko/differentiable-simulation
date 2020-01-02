@@ -48,8 +48,9 @@ class Model:
 
         self.gru2 = tf.keras.layers.GRU(self.internal_size,
                                         return_sequences=True,
-                                        name='gru3',
+                                        name='gru2',
                                         activation='tanh')
+
         x = self.gru(user_input, initial_state=initial_state)
         x = self.gru2(x)
 
@@ -58,8 +59,8 @@ class Model:
     def render(self, memory):
         self.renderer = tf.keras.layers.Dense(self.W * self.H,
                                               activation='sigmoid',
-                                              name='frame_matrix')
+                                              name='frame_vector')
         self.reshaper = tf.keras.layers.Reshape((-1, self.W, self.H),
-                                                name='frame_vector')
+                                                name='frame_matrix')
 
         return self.reshaper(self.renderer(memory))
