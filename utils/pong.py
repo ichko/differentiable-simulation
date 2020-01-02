@@ -75,15 +75,11 @@ class PONG:
         self.ball_size = bs
         self.game_over = False
 
-        self.left_plank = Plank(
-            -self.width / 2, 0, self.plank_width,
-            self.plank_height
-        )
+        self.left_plank = Plank(-self.width / 2, 0, self.plank_width,
+                                self.plank_height)
 
-        self.right_plank = Plank(
-            self.width / 2 - self.plank_width, 0,
-            self.plank_width, self.plank_height
-        )
+        self.right_plank = Plank(self.width / 2 - self.plank_width, 0,
+                                 self.plank_width, self.plank_height)
 
         self.ball = Ball(0, 0, self.ball_size, b_dir)
 
