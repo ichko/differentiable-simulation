@@ -4,7 +4,7 @@ import datetime
 
 
 class Model:
-    def __init__(self, internal_size, W, H):
+    def __init__(self, internal_size, W, H, lr, weight_decay):
         self.W = W
         self.H = H
         self.internal_size = internal_size
@@ -24,10 +24,10 @@ class Model:
 
         self.net = tf.keras.Model([game_init, user_input], frame)
 
-        initial_learning_rate = 0.005
+        initial_learning_rate = lr
 
         self.optimizer = tfa.optimizers.AdamW(
-            learning_rate=initial_learning_rate, weight_decay=1e-4)
+            learning_rate=initial_learning_rate, weight_decay=weight_decay)
 
         self.net.compile(loss='binary_crossentropy',
                          optimizer=self.optimizer,
@@ -46,13 +46,19 @@ class Model:
                                        name='gru',
                                        activation='tanh')
 
+        self.bn = tf.keras.layers.BatchNormalization()
+
         self.gru2 = tf.keras.layers.GRU(self.internal_size,
                                         return_sequences=True,
                                         name='gru2',
                                         activation='tanh')
 
+        self.bn2 = tf.keras.layers.BatchNormalization()
+
         x = self.gru(user_input, initial_state=initial_state)
+        x = self.bn(x)
         x = self.gru2(x)
+        x = self.bn2(x)
 
         return x
 
