@@ -58,7 +58,7 @@ I recon it will be interesting to analyze how different parts of the state influ
 not much but it's honest work
 
 - Split screen view of the true and the predicted state of the simulation.
-  ![split screen](assets/split_screen_view.gif)
+  ![split screen](assets/gru-gru-long-test.gif)
 - Up - True frame, Down - Predicted frame
   ![training progress](assets/training_progress.png)
 

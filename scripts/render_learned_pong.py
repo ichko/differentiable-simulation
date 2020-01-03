@@ -51,7 +51,7 @@ def main():
             rgb_pred_frame = cmap(pred_frame)
 
             print('LEFT: [%s]  --  RIGHT: [%s]' %
-                  tuple(' UP ' if i > 0 else 'DOWN' if i < 0 else ' ## '
+                  tuple(' UP ' if i > 0 else 'DOWN' if i < 0 else ' ** '
                         for i in controls))
 
             split_screen = np.concatenate((rgb_frame, rgb_pred_frame), axis=1)
