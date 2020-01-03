@@ -10,8 +10,7 @@ def on_batch_begin(func):
     return CustomCallback()
 
 
-def model_persistor(model):
-    checkpoint_dir = '.checkpoints/'
+def model_persistor(model, checkpoint_dir='.checkpoints/'):
     cp_file_name = 'cp.{epoch:0004d}-{loss:.5f}.hdf5'
 
     if not os.path.exists(checkpoint_dir):

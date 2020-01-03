@@ -2,8 +2,21 @@ import sys
 import numpy as np
 import cv2
 
-
 WIN_NAME = 'WINDOW'
+
+
+def get_pressed_key():
+    special = {
+        32: 'space',
+        81: 'left',
+        82: 'up',
+        83: 'right',
+        84: 'down',
+    }
+
+    key = cv2.waitKey(33)
+
+    return special[key] if key in special else chr(key) if key > 0 else -1
 
 
 class Renderer:
@@ -25,17 +38,16 @@ class Renderer:
 
     def rect(self, x, y, w, h, rgb=(1, 1, 1), thickness=-1):
         x, y = self._origin_translate(x, y)
-        cv2.rectangle(
-            self.canvas,
-            (int(x), int(y)), (int(x + w), int(y + h)), rgb, thickness=thickness
-        )
+        cv2.rectangle(self.canvas, (int(x), int(y)), (int(x + w), int(y + h)),
+                      rgb,
+                      thickness=thickness)
 
     def arc(self, x, y, rad, rgb=(1, 1, 1), thickness=-1):
         x, y = self._origin_translate(x, y)
-        cv2.circle(
-            self.canvas, (int(x), int(y)),
-            int(rad), rgb, thickness=thickness
-        )
+        cv2.circle(self.canvas, (int(x), int(y)),
+                   int(rad),
+                   rgb,
+                   thickness=thickness)
 
     def _origin_translate(self, x, y):
         return self.origin_x + x, self.origin_y - y
@@ -46,13 +58,9 @@ class Renderer:
         cv2.resizeWindow(WIN_NAME, W, H)
         cv2.moveWindow(WIN_NAME, 100, 100)
 
-    @staticmethod
-    def key_pressed(key):
-        return cv2.waitKey(33) == ord(key)
-
     @classmethod
     def can_render(cls):
-        end = cls.key_pressed('q')
+        end = get_pressed_key() == 'q'
 
         if end:
             cv2.destroyWindow(WIN_NAME)
@@ -61,4 +69,5 @@ class Renderer:
 
     @staticmethod
     def show_frame(canvas):
+        cv2.waitKey(33)
         cv2.imshow(WIN_NAME, canvas)
