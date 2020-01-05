@@ -10,9 +10,12 @@ def on_batch_begin(func):
     return CustomCallback()
 
 
-def model_persistor(model, checkpoint_dir='.checkpoints/'):
-    cp_file_name = 'cp.{epoch:0004d}-{loss:.5f}.hdf5'
-
+def model_persistor(
+    model,
+    should_preload_model=True,
+    checkpoint_dir='.checkpoints/',
+    cp_file_name='cp.{epoch:0004d}-{loss:.5f}.hdf5',
+):
     if not os.path.exists(checkpoint_dir):
         os.mkdir(checkpoint_dir)
 
@@ -20,12 +23,13 @@ def model_persistor(model, checkpoint_dir='.checkpoints/'):
                                         latest_filename=cp_file_name)
     sorted_by_date = sorted(
         [checkpoint_dir + f for f in os.listdir(checkpoint_dir)],
-        key=os.path.getmtime)
+        key=os.path.getmtime,
+    )
 
     if latest is None and len(sorted_by_date) > 0:
         latest = sorted_by_date[-1]
 
-    if latest:
+    if should_preload_model and latest:
         try:
             model.net.load_weights(latest)
         except Exception as e:
@@ -38,6 +42,7 @@ def model_persistor(model, checkpoint_dir='.checkpoints/'):
         save_best_only=True,
         save_weights_only=False,
         mode='min',
-        save_freq='epoch')
+        save_freq='epoch',
+    )
 
     return checkpoint_callback
