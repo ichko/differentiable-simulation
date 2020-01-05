@@ -64,7 +64,6 @@ not much but it's honest work
 
 ## TODOs
 
-- Optimize and refactor input pipeline
 - Research OpenAI gyms [here](https://gym.openai.com/envs/Pong-v0/)
 
 ## Resources
