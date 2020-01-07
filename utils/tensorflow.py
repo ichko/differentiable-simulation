@@ -2,6 +2,15 @@ import os
 import tensorflow as tf
 
 
+def tf_print(func=lambda x: x):
+    def printer(x):
+        mapped_x = func(x)
+        tf.print(mapped_x)
+        return x
+
+    return tf.keras.layers.Lambda(printer, name='printer')
+
+
 def on_batch_begin(func):
     class CustomCallback(tf.keras.callbacks.Callback):
         def on_epoch_begin(self, batch, logs=None):
