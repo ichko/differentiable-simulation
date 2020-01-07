@@ -2,45 +2,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_addons as tfa
 import datetime
-
-
-def drnn_layer(type, size, skip_size, stateful, name):
-    types = {
-        'gru': tf.keras.layers.GRU,
-        'lstm': tf.keras.layers.LSTM,
-    }
-
-    if type not in types:
-        raise ValueError('type of cell should be in [gru, lstm]')
-
-    explode = tf.keras.layers.Lambda(
-        lambda x: tf.space_to_batch(x, [skip_size], paddings=[[0, 0]]),
-        name='space_to_batch_%s' % name,
-    )
-
-    rnn = types[type](
-        size,
-        activation='tanh',
-        return_sequences=True,
-        stateful=stateful,
-        name='rnn_%s_%s' % (type, name),
-    )
-
-    implode = tf.keras.layers.Lambda(
-        lambda x: tf.batch_to_space(x, [skip_size], crops=[[0, 0]]),
-        name='batch_to_space_%s' % name,
-    )
-
-    bn = tf.keras.layers.BatchNormalization(name='batch_norm_%s' % name)
-
-    def call(x, initial_state=None):
-        x = explode(x)
-        x = rnn(x, initial_state=initial_state)
-        x = bn(x)
-        x = implode(x)
-        return x
-
-    return call
+import utils.tf_helpers as tf_helpers
 
 
 def make_initializer(size):
@@ -59,10 +21,12 @@ def make_initializer(size):
 
 
 def make_memory(size, stateful):
-    gru1 = drnn_layer('gru', size, 1, stateful, 'gru1')
-    gru2 = drnn_layer('gru', size, 2, stateful, 'gru2')
+    gru1 = tf_helpers.drnn_layer('gru', size, 1, stateful, 'gru1')
+    gru2 = tf_helpers.drnn_layer('gru', size, 4, stateful, 'gru2')
+    gru3 = tf_helpers.drnn_layer('gru', size, 16, stateful, 'gru3')
+    gru4 = tf_helpers.drnn_layer('gru', size, 32, stateful, 'gru4')
 
-    return lambda x, s=None: gru2(gru1(x, s))
+    return lambda x, s=None: gru4(gru3(gru2(gru1(x, s))))
 
 
 def make_render(W, H):

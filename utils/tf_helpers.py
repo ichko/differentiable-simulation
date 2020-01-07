@@ -2,6 +2,45 @@ import os
 import tensorflow as tf
 
 
+def drnn_layer(type, size, skip_size, stateful, name):
+    types = {
+        'gru': tf.keras.layers.GRU,
+        'lstm': tf.keras.layers.LSTM,
+    }
+
+    if type not in types:
+        raise ValueError('type of cell should be in [gru, lstm]')
+
+    explode = tf.keras.layers.Lambda(
+        lambda x: tf.space_to_batch(x, [skip_size], paddings=[[0, 0]]),
+        name='space_to_batch_%s' % name,
+    )
+
+    rnn = types[type](
+        size,
+        activation='tanh',
+        return_sequences=True,
+        stateful=stateful,
+        name='rnn_%s_%s' % (type, name),
+    )
+
+    implode = tf.keras.layers.Lambda(
+        lambda x: tf.batch_to_space(x, [skip_size], crops=[[0, 0]]),
+        name='batch_to_space_%s' % name,
+    )
+
+    bn = tf.keras.layers.BatchNormalization(name='batch_norm_%s' % name)
+
+    def call(x, initial_state=None):
+        x = explode(x)
+        x = rnn(x, initial_state=initial_state)
+        x = bn(x)
+        x = implode(x)
+        return x
+
+    return call
+
+
 def tf_print(func=lambda x: x):
     def printer(x):
         mapped_x = func(x)
