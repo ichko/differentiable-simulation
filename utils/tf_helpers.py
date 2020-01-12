@@ -32,10 +32,13 @@ def drnn_layer(type, size, skip_size, stateful, name):
     bn = tf.keras.layers.BatchNormalization(name='batch_norm_%s' % name)
 
     def call(x, initial_state=None):
-        x = explode(x)
+        if skip_size > 1:
+            x = explode(x)
         x = rnn(x, initial_state=initial_state)
         x = bn(x)
-        x = implode(x)
+        if skip_size > 1:
+            x = implode(x)
+
         return x
 
     return call

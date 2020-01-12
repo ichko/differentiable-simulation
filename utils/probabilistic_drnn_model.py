@@ -4,6 +4,8 @@ import tensorflow_addons as tfa
 import datetime
 import utils.tf_helpers as tf_helpers
 
+tf_print = tf_helpers.tf_print()
+
 
 def make_memory(size, stateful):
     gru1 = tf_helpers.drnn_layer('gru', size, 1, stateful, 'gru1')
@@ -14,30 +16,41 @@ def make_memory(size, stateful):
 
 
 def make_render(W, H):
-    renderer = tf.keras.layers.Dense(
-        W * H,
-        activation='sigmoid',
-        name='frame_vector',
-    )
+    # There is a memory leak issue with using TimeDistributed
+    # https://github.com/tensorflow/tensorflow/issues/33178
 
-    reshaper = tf.keras.layers.Reshape(
-        (-1, W, H),
-        name='frame_matrix',
-    )
+    d = tf.keras.layers.Dense(13 * 13)
+    dr = tf.keras.layers.Reshape((-1, 13, 13, 1))
 
-    return lambda x: reshaper(renderer(x))
+    l1 = tf.keras.layers.TimeDistributed(
+        tf.keras.layers.Conv2DTranspose(
+            8,
+            (2, 2),
+            strides=(2, 2),
+            activation='relu',
+        ))
+
+    l2 = tf.keras.layers.TimeDistributed(
+        tf.keras.layers.Conv2DTranspose(
+            3,
+            (2, 2),
+            strides=(2, 2),
+            activation='sigmoid',
+        ))
+
+    return lambda x: l2(l1(dr(d(x))))
 
 
 def make_reward_projector():
     dense1 = tf.keras.layers.Dense(
         8,
-        name='project_activation',
+        name='reward_dense1',
         activation='relu',
     )
 
     dense2 = tf.keras.layers.Dense(
         1,
-        name='project_activation',
+        name='reward_dense2',
         activation='sigmoid',
     )
 
@@ -63,7 +76,7 @@ class DRNN:
 
         action = tf.keras.layers.Input(
             shape=(None, 3),
-            name='user_input',
+            name='action',
             batch_size=bs,
         )
 
@@ -71,7 +84,7 @@ class DRNN:
         self.renderer = make_render(W, H)
         self.reward_projection = make_reward_projector()
 
-        memory = self.rollout_memory(internal_size, action)
+        memory = self.rollout_memory(action)
         frame = self.renderer(memory)
         reward = self.reward_projection(memory)
 
@@ -85,5 +98,5 @@ class DRNN:
         self.net.compile(
             loss='binary_crossentropy',
             optimizer=self.optimizer,
-            metrics=['mse'],
+            # metrics=['mse'],
         )

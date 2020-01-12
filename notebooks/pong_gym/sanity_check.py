@@ -12,18 +12,30 @@ def repeat_upsample(rgb_array, s=1):
 
 
 viewer = rendering.SimpleImageViewer()
-env = gym.make('PongDeterministic-v4')
+env = gym.make('CarRacing-v0')
 env.reset()
 
 while range(1000):
     time.sleep(1 / 30)
     action = env.action_space.sample()
-    observation, reward, done, info = env.step(action)
+    _observation, reward, done, info = env.step(action)
+
     if done:
         env.reset()
-    f = cv2.resize(observation, (80, 100), interpolation=cv2.INTER_LINEAR)
-    upscaled = repeat_upsample(f, 5)
-    viewer.imshow(upscaled)
+
+    rgb = env.render('rgb_array')
+    scale = 0.4
+    frame = cv2.resize(
+        rgb,
+        (int(rgb.shape[0] * scale), int(rgb.shape[1] * scale)),
+        interpolation=cv2.INTER_LINEAR,
+    )
+
+    viewer.imshow(frame)
+    plt.imshow(frame)
+    plt.show()
+
+    print(frame.shape)
 
     # print(upscaled[:, :, 0].shape)
     # plt.imshow(upscaled)
