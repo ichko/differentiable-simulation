@@ -79,7 +79,7 @@ not much but it's honest work
 
   - VAE Research
     - [KL Divergence: Forward vs Reverse?](https://wiseodd.github.io/techblog/2016/12/21/forward-reverse-kl/)
-    - (Mixture density VAE for composing (Masters thesis))[https://www.duo.uio.no/bitstream/handle/10852/67479/1/Variational_Autoencoders_for_Algorithmic_Composition.pdf]
+    - [Mixture density VAE for composing (Masters thesis)](https://www.duo.uio.no/bitstream/handle/10852/67479/1/Variational_Autoencoders_for_Algorithmic_Composition.pdf)
 
 - Videos
 
