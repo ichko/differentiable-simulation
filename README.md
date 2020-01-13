@@ -77,6 +77,10 @@ not much but it's honest work
   - [Differentiable neural computer](https://en.wikipedia.org/wiki/Differentiable_neural_computer)
   - [Differentiable neural computers (DeepMind)](https://deepmind.com/blog/article/differentiable-neural-computers)
 
+  - VAE Research
+    - [KL Divergence: Forward vs Reverse?](https://wiseodd.github.io/techblog/2016/12/21/forward-reverse-kl/)
+    - (Mixture density VAE for composing (Masters thesis))[https://www.duo.uio.no/bitstream/handle/10852/67479/1/Variational_Autoencoders_for_Algorithmic_Composition.pdf]
+
 - Videos
 
   - [Neural Network Learns The Physics of Fluids and Smoke | Two Minute Papers #118](https://www.youtube.com/watch?v=iOWamCtnwTc)
