@@ -45,6 +45,9 @@ I recon it will be interesting to analyze how different parts of the state influ
   - VAE Stuff
     - [KL Divergence: Forward vs Reverse?](https://wiseodd.github.io/techblog/2016/12/21/forward-reverse-kl/)
     - [Mixture density VAE for composing (Masters thesis)](https://www.duo.uio.no/bitstream/handle/10852/67479/1/Variational_Autoencoders_for_Algorithmic_Composition.pdf)
+    - [Variational Autoencoder: Intuition and Implementation](https://wiseodd.github.io/techblog/2016/12/10/variational-autoencoder/)
+    - [Teaching a Variational Autoencoder (VAE) to draw MNIST characters](https://towardsdatascience.com/teaching-a-variational-autoencoder-vae-to-draw-mnist-characters-978675c95776)
+    - [ML Glossary](https://ml-cheatsheet.readthedocs.io/en/latest/architectures.html#vae)
 
 - Videos
 

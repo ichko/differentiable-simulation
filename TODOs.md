@@ -9,5 +9,7 @@
 - [x] Scrape 1500 sequences from CarRacing-v0
    - 1000 steps for each rollout
 - [x] Preprocess in single `hdf5` file
+   - [Deep Learning . Training with huge amount of data .PART1](https://medium.com/@cristianzantedeschi/deep-learning-regression-feeding-huge-amount-of-data-to-gpu-performance-considerations-2934d32ab315)
+   - [HDF5 Advantages: Organization, flexibility, interoperability](https://stackoverflow.com/questions/27710245/is-there-an-analysis-speed-or-memory-usage-advantage-to-using-hdf5-for-large-arr)
 - [ ] Train conditioned model
 - [ ] _Make model probabilistic (might leave for next week)_
