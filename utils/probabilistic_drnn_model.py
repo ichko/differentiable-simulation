@@ -1,102 +1,92 @@
+import datetime
 import numpy as np
+
 import tensorflow as tf
 import tensorflow_addons as tfa
-import datetime
-import utils.tf_helpers as tf_helpers
+import tensorflow.keras.layers as kl
 
-tf_print = tf_helpers.tf_print()
-
-
-def make_memory(size, stateful):
-    gru1 = tf_helpers.drnn_layer('gru', size, 1, stateful, 'gru1')
-    gru2 = tf_helpers.drnn_layer('gru', size, 4, stateful, 'gru2')
-    gru3 = tf_helpers.drnn_layer('gru', size, 1, stateful, 'gru3')
-
-    return lambda x, s=None: gru3(gru2(gru1(x, s)))
+import utils.tf_helpers as tfh
 
 
-def make_render(W, H):
+def de_conv(f, ks, s, a):
+    return kl.TimeDistributed(
+        kl.Conv2DTranspose(
+            filters=f,
+            kernel_size=(ks, ks),
+            strides=(s, s),
+            activation=a,
+        ))
+
+
+def mk_recurrence(size):
+    return tf.keras.Sequential(
+        [
+            tfh.drnn(type='gru', size=size, skip=1, name='gru1'),
+            kl.BatchNormalization(),
+            tfh.drnn(type='gru', size=size, skip=4, name='gru2'),
+            kl.BatchNormalization(),
+            tfh.drnn(type='gru', size=size, skip=1, name='gru3'),
+            kl.BatchNormalization(),
+        ],
+        name='memory',
+    )
+
+
+def mk_renderer():
     # There is a memory leak issue with using TimeDistributed
     # https://github.com/tensorflow/tensorflow/issues/33178
-
-    d = tf.keras.layers.Dense(13 * 13)
-    dr = tf.keras.layers.Reshape((-1, 13, 13, 1))
-
-    l1 = tf.keras.layers.TimeDistributed(
-        tf.keras.layers.Conv2DTranspose(
-            8,
-            (2, 2),
-            strides=(2, 2),
-            activation='relu',
-        ))
-
-    l2 = tf.keras.layers.TimeDistributed(
-        tf.keras.layers.Conv2DTranspose(
-            3,
-            (2, 2),
-            strides=(2, 2),
-            activation='sigmoid',
-        ))
-
-    return lambda x: l2(l1(dr(d(x))))
-
-
-def make_reward_projector():
-    dense1 = tf.keras.layers.Dense(
-        8,
-        name='reward_dense1',
-        activation='relu',
+    start_size = 16
+    return tf.keras.Sequential(
+        [
+            kl.Dense(start_size * start_size),
+            kl.Reshape((-1, start_size, start_size, 1)),
+            de_conv(f=128, ks=2, s=2, a='relu'),  # 32
+            de_conv(f=64, ks=2, s=2, a='relu'),  # 64
+            de_conv(f=16, ks=2, s=2, a='relu'),  # 128
+            de_conv(f=3, ks=1, s=1, a='sigmoid'),
+        ],
+        name='renderer',
     )
 
-    dense2 = tf.keras.layers.Dense(
-        1,
-        name='reward_dense2',
-        activation='sigmoid',
+
+def mk_reward():
+    return tf.keras.Sequential(
+        [
+            kl.Dense(8, activation='relu', name='reward_dense1'),
+            kl.Dense(1, activation='softmax', name='reward_dense2')
+        ],
+        name='reward',
     )
 
-    return lambda x: dense2(dense1(x))
+
+def mk_tb_callback():
+    model_id = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+    log_dir = 'logs/fit/probabilistic-drnn/' + model_id
+
+    return tf.keras.callbacks.TensorBoard(
+        log_dir=log_dir,
+        histogram_freq=1,
+    )
 
 
 class DRNN:
-    def __init__(self, internal_size, W, H, lr, weight_decay, stateful=False):
-        bs = 1 if stateful else None
-        self.W = W
-        self.H = H
-        self.internal_size = internal_size
-        self.stateful = stateful
-        self.first_time = False
+    def __init__(self, internal_size, lr, weight_decay):
+        self.tb_callback = mk_tb_callback()
 
-        model_id = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-        log_dir = 'logs/fit/probabilistic-drnn/' + model_id
+        action = kl.Input(shape=(None, 3), name='action')
+        self.memory = mk_recurrence(internal_size)
+        self.renderer = mk_renderer()
+        self.reward = mk_reward()
 
-        self.tb_callback = tf.keras.callbacks.TensorBoard(
-            log_dir=log_dir,
-            histogram_freq=1,
-        )
+        latent_memory = self.memory(action)
+        observation = self.renderer(latent_memory)
+        reward = self.reward(latent_memory)
 
-        action = tf.keras.layers.Input(
-            shape=(None, 3),
-            name='action',
-            batch_size=bs,
-        )
-
-        self.rollout_memory = make_memory(internal_size, stateful)
-        self.renderer = make_render(W, H)
-        self.reward_projection = make_reward_projector()
-
-        memory = self.rollout_memory(action)
-        frame = self.renderer(memory)
-        reward = self.reward_projection(memory)
-
-        self.net = tf.keras.Model([action], [frame, reward])
-
-        self.optimizer = tfa.optimizers.AdamW(
-            learning_rate=lr,
-            weight_decay=weight_decay,
-        )
-
+        self.net = tf.keras.Model([action], [observation, reward])
         self.net.compile(
             loss='binary_crossentropy',
-            optimizer=self.optimizer,
-            # metrics=['mse'],
+            optimizer=tfa.optimizers.AdamW(
+                learning_rate=lr,
+                weight_decay=weight_decay,
+            ),
         )
