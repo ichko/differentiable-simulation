@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_addons as tfa
 import datetime
-import utils.tf_helpers as tf_helpers
+import utils.tf_helpers as tfh
 
 
 def make_initializer(size):
@@ -21,10 +21,10 @@ def make_initializer(size):
 
 
 def make_memory(size, stateful):
-    gru1 = tf_helpers.drnn_layer('gru', size, 1, stateful, 'gru1')
-    gru2 = tf_helpers.drnn_layer('gru', size, 4, stateful, 'gru2')
-    gru3 = tf_helpers.drnn_layer('gru', size, 16, stateful, 'gru3')
-    gru4 = tf_helpers.drnn_layer('gru', size, 32, stateful, 'gru4')
+    gru1 = tfh.drnn('gru', size, 1, stateful, 'gru1')
+    gru2 = tfh.drnn('gru', size, 4, stateful, 'gru2')
+    gru3 = tfh.drnn('gru', size, 16, stateful, 'gru3')
+    gru4 = tfh.drnn('gru', size, 32, stateful, 'gru4')
 
     return lambda x, s=None: gru4(gru3(gru2(gru1(x, s))))
 
