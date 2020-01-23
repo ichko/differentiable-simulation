@@ -18,26 +18,43 @@ def de_conv(f, ks, s, a):
         ))
 
 
-def mk_recurrence(size):
+def mk_initializer(input_shape, output_size):
     return tf.keras.Sequential(
         [
-            tfh.drnn(type='gru', size=size, skip=1, name='gru1'),
+            kl.Input(input_shape),
+            kl.Flatten(),
+            kl.Dense(16, activation='relu', name='init1'),
             kl.BatchNormalization(),
-            tfh.drnn(type='gru', size=size, skip=4, name='gru2'),
+            kl.Dense(32, activation='relu', name='init2'),
             kl.BatchNormalization(),
-            tfh.drnn(type='gru', size=size, skip=1, name='gru3'),
+            kl.Dense(output_size, activation='tanh', name='init3'),
             kl.BatchNormalization(),
         ],
-        name='memory',
+        name='initializer',
     )
 
 
-def mk_renderer():
+def mk_recurrence(input_shape, internal_size):
+    i = kl.Input(input_shape)
+    s = kl.Input(internal_size)
+
+    x = tfh.drnn(type='gru', size=internal_size, skip=1, name='gru1')(i, s)
+    x = kl.BatchNormalization()(x)
+    x = tfh.drnn(type='gru', size=internal_size, skip=4, name='gru2')(x)
+    x = kl.BatchNormalization()(x)
+    x = tfh.drnn(type='gru', size=internal_size, skip=1, name='gru3')(x)
+    x = kl.BatchNormalization()(x)
+
+    return tf.keras.Model([i, s], x, name='memory')
+
+
+def mk_renderer(input_size):
     # There is a memory leak issue with using TimeDistributed
     # https://github.com/tensorflow/tensorflow/issues/33178
     start_size = 16
     return tf.keras.Sequential(
         [
+            kl.Input((None, input_size)),
             kl.Dense(start_size * start_size),
             kl.Reshape((-1, start_size, start_size, 1)),
             de_conv(f=128, ks=2, s=2, a='relu'),  # 32
@@ -49,9 +66,10 @@ def mk_renderer():
     )
 
 
-def mk_reward():
+def mk_reward(input_size):
     return tf.keras.Sequential(
         [
+            kl.Input((None, input_size)),
             kl.Dense(8, activation='relu', name='reward_dense1'),
             kl.Dense(1, activation='softmax', name='reward_dense2')
         ],
@@ -73,16 +91,22 @@ class DRNN:
     def __init__(self, internal_size, lr, weight_decay):
         self.tb_callback = mk_tb_callback()
 
-        action = kl.Input(shape=(None, 3), name='action')
-        self.memory = mk_recurrence(internal_size)
-        self.renderer = mk_renderer()
-        self.reward = mk_reward()
+        action_shape = (None, 3)
+        init_shape = (12, 2)
+        condition = kl.Input(shape=init_shape, name='condition')
+        action = kl.Input(shape=action_shape, name='action')
 
-        latent_memory = self.memory(action)
+        self.init = mk_initializer(init_shape, internal_size)
+        self.memory = mk_recurrence(action_shape, internal_size)
+        self.renderer = mk_renderer(internal_size)
+        self.reward = mk_reward(internal_size)
+
+        init = self.init(condition)
+        latent_memory = self.memory([action, init])
         observation = self.renderer(latent_memory)
         reward = self.reward(latent_memory)
 
-        self.net = tf.keras.Model([action], [observation, reward])
+        self.net = tf.keras.Model([condition, action], [observation, reward])
         self.net.compile(
             loss='binary_crossentropy',
             optimizer=tfa.optimizers.AdamW(
