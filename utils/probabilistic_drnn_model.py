@@ -35,8 +35,8 @@ def mk_initializer(input_shape, output_size):
 
 
 def mk_recurrence(input_shape, internal_size):
-    i = kl.Input(input_shape)
-    s = kl.Input(internal_size)
+    i = kl.Input(input_shape, name='actions_input')
+    s = kl.Input(internal_size, name='initial_state')
 
     x = tfh.drnn(type='gru', size=internal_size, skip=1, name='gru1')(i, s)
     x = kl.BatchNormalization()(x)
