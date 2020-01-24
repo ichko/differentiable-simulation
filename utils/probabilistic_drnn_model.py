@@ -62,7 +62,7 @@ def mk_recurrence(input_shape, internal_size):
 
 
 def mk_renderer(input_size):
-    # There is a memory leak issue with using TimeDistributed
+    # There is a memory leak issue with TimeDistributed
     # https://github.com/tensorflow/tensorflow/issues/33178
     start_size = 16
     return tf.keras.Sequential(
