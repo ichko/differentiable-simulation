@@ -18,6 +18,19 @@ def de_conv(f, ks, s, a):
         ))
 
 
+def mk_sampler(bs, seq_len, internal_size):
+    def sampler(x):
+        normal = tf.random.normal((bs, seq_len, internal_size // 2))
+        mean, stddev = tf.split(
+            x,
+            [internal_size // 2, internal_size // 2],
+            axis=2,
+        )
+        return normal * stddev + mean
+
+    return tf.keras.layers.Lambda(sampler, name='sampler')
+
+
 def mk_initializer(input_shape, output_size):
     return tf.keras.Sequential(
         [
@@ -56,10 +69,14 @@ def mk_renderer(input_size):
         [
             kl.Input((None, input_size)),
             kl.Dense(start_size * start_size),
+            kl.BatchNormalization(),
             kl.Reshape((-1, start_size, start_size, 1)),
             de_conv(f=128, ks=2, s=2, a='relu'),  # 32
+            kl.BatchNormalization(),
             de_conv(f=64, ks=2, s=2, a='relu'),  # 64
+            kl.BatchNormalization(),
             de_conv(f=16, ks=2, s=2, a='relu'),  # 128
+            kl.BatchNormalization(),
             de_conv(f=3, ks=1, s=1, a='sigmoid'),
         ],
         name='renderer',
@@ -71,6 +88,7 @@ def mk_reward(input_size):
         [
             kl.Input((None, input_size)),
             kl.Dense(8, activation='relu', name='reward_dense1'),
+            kl.BatchNormalization(),
             kl.Dense(1, activation='softmax', name='reward_dense2')
         ],
         name='reward',
@@ -88,7 +106,7 @@ def mk_tb_callback():
 
 
 class DRNN:
-    def __init__(self, internal_size, lr, weight_decay):
+    def __init__(self, seq_len, bs, internal_size, lr, weight_decay):
         self.tb_callback = mk_tb_callback()
 
         action_shape = (None, 3)
@@ -98,11 +116,15 @@ class DRNN:
 
         self.init = mk_initializer(init_shape, internal_size)
         self.memory = mk_recurrence(action_shape, internal_size)
-        self.renderer = mk_renderer(internal_size)
-        self.reward = mk_reward(internal_size)
+        self.sampler = mk_sampler(bs, seq_len, internal_size)
+        self.renderer = mk_renderer(internal_size // 2)
+        self.reward = mk_reward(internal_size // 2)
 
         init = self.init(condition)
         latent_memory = self.memory([action, init])
+        print(latent_memory.shape)
+        latent_memory = self.sampler(latent_memory)
+
         observation = self.renderer(latent_memory)
         reward = self.reward(latent_memory)
 
