@@ -124,7 +124,7 @@ def main(SEQ_LEN, W, H, internal_size, batch_size, steps_per_epoch, lr,
         validation_data=input_generator,
         validation_steps=2,
         steps_per_epoch=steps_per_epoch,
-        epochs=2000,
+        epochs=100,
         callbacks=callbacks,
     )
 
