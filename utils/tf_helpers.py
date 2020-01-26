@@ -110,3 +110,38 @@ def model_persistor(
     )
 
     return checkpoint_callback
+
+
+def get_generator_shape(generator):
+    # the output shapes is required because of
+    # https://github.com/tensorflow/tensorflow/issues/24520
+    def map_to_shape(el):
+        return tuple(map_to_shape(e) for e in el) \
+            if type(el) is tuple \
+            else el.shape
+        
+    return map_to_shape(next(generator()))
+
+
+def get_generator_type(generator):
+    def map_to_type(el):
+        return tuple(map_to_type(e) for e in el) \
+            if type(el) is tuple \
+            else el.dtype
+        
+    return map_to_type(next(generator()))
+
+
+def make_dataset(generator, batch_size=1):
+    ds = tf.data.Dataset.from_generator(
+        generator,
+        output_types=get_generator_type(generator),
+        output_shapes=get_generator_shape(generator),
+    )
+
+    ds = ds.repeat()
+    ds = ds.batch(batch_size)
+    # ds = ds.map(lambda x,y : (x, y), num_parallel_calls=16)
+    ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
+
+    return ds
