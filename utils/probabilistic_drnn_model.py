@@ -5,7 +5,7 @@ import tensorflow as tf
 import tensorflow_addons as tfa
 import tensorflow.keras.layers as kl
 
-import utils.tf_helpers as tfh
+import tf_helpers as tfh
 
 
 def de_conv(f, ks, s, a):
@@ -18,14 +18,11 @@ def de_conv(f, ks, s, a):
         ))
 
 
-def mk_sampler(bs, seq_len, internal_size):
+def mk_sampler(internal_size):
     def sampler(x):
-        normal = tf.random.normal((bs, seq_len, internal_size // 2))
-        mean, stddev = tf.split(
-            x,
-            [internal_size // 2, internal_size // 2],
-            axis=2,
-        )
+        s = tf.shape(x)
+        normal = tf.random.normal((s[0], s[1], internal_size // 2))
+        mean, stddev = tf.split(x, 2, axis=2)
         return normal * stddev + mean
 
     return tf.keras.layers.Lambda(sampler, name='sampler')
@@ -106,7 +103,7 @@ def mk_tb_callback():
 
 
 class DRNN:
-    def __init__(self, seq_len, bs, internal_size, lr, weight_decay):
+    def __init__(self, internal_size, lr, weight_decay):
         self.tb_callback = mk_tb_callback()
 
         action_shape = (None, 3)
@@ -116,13 +113,12 @@ class DRNN:
 
         self.init = mk_initializer(init_shape, internal_size)
         self.memory = mk_recurrence(action_shape, internal_size)
-        self.sampler = mk_sampler(bs, seq_len, internal_size)
+        self.sampler = mk_sampler(internal_size)
         self.renderer = mk_renderer(internal_size // 2)
         self.reward = mk_reward(internal_size // 2)
 
         init = self.init(condition)
         latent_memory = self.memory([action, init])
-        print(latent_memory.shape)
         latent_memory = self.sampler(latent_memory)
 
         observation = self.renderer(latent_memory)

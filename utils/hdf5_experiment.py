@@ -6,9 +6,9 @@ import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 
-import utils.probabilistic_drnn_model
-import utils.visualization
-import utils.tf_helpers as tfh
+import probabilistic_drnn_model
+import visualization
+import tf_helpers as tfh
 
 HD = h5py.File('../../DQN/car_racing.hdf5', 'r+')
 
@@ -21,37 +21,17 @@ OBSERVATIONS = HD['observations']
 REWARDS = (HD['rewards'] - MIN_REWARD) / (MAX_REWARD - MIN_REWARD)
 ACTIONS = HD['actions'][()]
 
-EX = sacred.Experiment(name='DRNN Car Racing 3', interactive=True)
+EX = sacred.Experiment(name='DRNN Car Racing 3')
 
 
-@EX.capture
-def make_dataset(batch_size, W, H, SEQ_LEN):
-    def data_input():
-        for c, a, o, r in zip(CHECKPOINTS, ACTIONS, OBSERVATIONS, REWARDS):
-            c = c[:SEQ_LEN]
-            a = a[:SEQ_LEN]
-            o = o[:SEQ_LEN] / 255.0
-            о = cv2.resize(o, (W, H))
-            r = r[:SEQ_LEN]
+def data_input(W, H, SEQ_LEN):
+    for c, a, o, r in zip(CHECKPOINTS, ACTIONS, OBSERVATIONS, REWARDS):
+        c = c[:SEQ_LEN]
+        a = a[:SEQ_LEN]
+        o = o[:SEQ_LEN] / 255.0
+        r = r[:SEQ_LEN]
 
-            yield (c, a), (o, r)
-
-    ds = tf.data.Dataset.from_generator(
-        data_input,
-        output_types=((tf.float32, tf.float32), (tf.float32, tf.float32)),
-        # the output shapes is required because of - https://github.com/tensorflow/tensorflow/issues/24520
-        output_shapes=(
-            (tf.TensorShape((12, 2)), tf.TensorShape((SEQ_LEN, 3))),
-            (tf.TensorShape((SEQ_LEN, W, H, 3)), tf.TensorShape((SEQ_LEN, ))),
-        ),
-    )
-
-    ds = ds.repeat()
-    ds = ds.batch(batch_size)
-    # ds = ds.map(lambda x,y : (x, y), num_parallel_calls=16)
-    ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
-
-    return ds
+        yield (c, a), (o, r)
 
 
 def on_batch_begin(model, input_generator):
@@ -59,7 +39,7 @@ def on_batch_begin(model, input_generator):
         X, Y = list(input_generator.take(1))[0]
         return X, Y[0]
 
-    utils.visualization.plot_pairwise_frames(
+    visualization.plot_pairwise_frames(
         sampler=sampler,
         hypotheses=lambda x: model.net.predict(x)[0][0],
     )
@@ -83,13 +63,14 @@ MODEL = None
 def main(SEQ_LEN, W, H, internal_size, batch_size, steps_per_epoch, lr,
          weight_decay, should_preload_model):
     global MODEL
-    input_generator = make_dataset(batch_size, W, H, SEQ_LEN)
+    input_generator = tfh.make_dataset(
+        lambda: data_input(W, H, SEQ_LEN),
+        batch_size,
+    )
 
     #### Model
-    MODEL = utils.probabilistic_drnn_model.DRNN(
+    MODEL = probabilistic_drnn_model.DRNN(
         internal_size=internal_size,
-        seq_len=SEQ_LEN,
-        bs=batch_size,
         lr=lr,
         weight_decay=weight_decay,
     )
@@ -130,16 +111,15 @@ def main(SEQ_LEN, W, H, internal_size, batch_size, steps_per_epoch, lr,
 
 
 if __name__ == '__main__':
-
-    @EX.config
-    def config():
-        SEQ_LEN = 128
-        W, H = 128, 128
-        internal_size = 32
-        batch_size = 4
-        steps_per_epoch = 128
-        lr = 0.001
-        weight_decay = 0.0001
-        should_preload_model = True
-
-    EX.run(config_updates={'should_preload_model': True})
+    EX.add_config(
+        SEQ_LEN = 128,
+        W = 128,
+        H = 128,
+        internal_size = 32,
+        batch_size = 4,
+        steps_per_epoch = 128,
+        lr = 0.001,
+        weight_decay = 0.0001,
+        should_preload_model = True,
+    )
+    EX.run()
