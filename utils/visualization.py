@@ -1,4 +1,27 @@
 import matplotlib.pyplot as plt
+import numpy as np
+import cv2
+
+
+def to_video(feed, name, size=1):
+    def normalize(video):
+        min = np.min(video)
+        max = np.max(video)
+        np_version = np.array(((video - min) / (max - min) * 255.0))
+        return np_version.astype(np.uint8)
+
+    _, W, H, _ = feed[0].shape
+    feed = [normalize(v) for v in feed]
+    split_frame = np.concatenate(feed, axis=2)
+
+    fourcc = cv2.VideoWriter_fourcc(*'MP42')
+    video = cv2.VideoWriter(name, fourcc, 30, (W * len(feed), H))
+
+    for frame in split_frame:
+        f = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        video.write(f)
+
+    video.release()
 
 
 def plot_pairwise_frames(sampler, hypotheses, num_samples=10):
