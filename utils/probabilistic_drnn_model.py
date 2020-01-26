@@ -9,18 +9,22 @@ import tf_helpers as tfh
 
 
 def de_conv(f, ks, s, a, bn=False):
-    layers = [conv = kl.TimeDistributed(
+    conv = kl.TimeDistributed(
         kl.Conv2DTranspose(
             filters=f,
             kernel_size=(ks, ks),
             strides=(s, s),
             activation=a,
-        ))]
+        ))
 
     if bn:
-        layers.append(kl.BatchNormalization())
-    
-    return tf.Sequential(layers)
+        return tf.keras.Sequential([
+            conv,
+            kl.BatchNormalization()
+        ])
+
+    return conv
+
 
 
 def mk_sampler(internal_size):
@@ -70,17 +74,16 @@ def mk_renderer(input_size):
     return tf.keras.Sequential(
         [
             kl.Input((None, input_size)),
-            kl.Dense(start_size * start_size),
+            kl.Dense(start_size * start_size, activation='tanh'),
             kl.BatchNormalization(),
+            kl.Reshape((-1, start_size, start_size, 1)),
             de_conv(16 , 2, 1, 'relu'   , bn=True ),
             de_conv(32 , 2, 2, 'relu'   , bn=True ),
             de_conv(64 , 3, 1, 'relu'   , bn=True ),
             de_conv(64 , 3, 2, 'relu'   , bn=True ),
             de_conv(128, 4, 1, 'relu'   , bn=True ),
-            de_conv(128, 4, 2, 'relu'   , bn=True ),
-            de_conv(64 , 3, 1, 'relu'   , bn=True ),
-            de_conv(64 , 3, 1, 'relu'   , bn=True ),
-            de_conv(32 , 4, 1, 'relu'   , bn=True ),
+            de_conv(128, 4, 1, 'relu'   , bn=True ),
+            de_conv(32 , 2, 1, 'relu'   , bn=True ),
             de_conv(3  , 1, 1, 'sigmoid', bn=False),
         ],
         name='renderer',
@@ -129,6 +132,7 @@ class DRNN:
         latent_memory = self.sampler(latent_memory)
 
         observation = self.renderer(latent_memory)
+        print(observation.shape)
         reward = self.reward(latent_memory)
 
         self.net = tf.keras.Model([condition, action], [observation, reward])

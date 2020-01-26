@@ -21,7 +21,7 @@ OBSERVATIONS = HD['observations']
 REWARDS = (HD['rewards'] - MIN_REWARD) / (MAX_REWARD - MIN_REWARD)
 ACTIONS = HD['actions'][()]
 
-EX = sacred.Experiment(name='DRNN Car Racing 3')
+EX = sacred.Experiment(name='DRNN Car Racing 4 (scaled renderer)')
 
 
 def data_input(W, H, SEQ_LEN):
@@ -29,6 +29,7 @@ def data_input(W, H, SEQ_LEN):
         c = c[:SEQ_LEN]
         a = a[:SEQ_LEN]
         o = o[:SEQ_LEN] / 255.0
+        o = np.array([cv2.resize(f, (64, 64)) for f in o])
         r = r[:SEQ_LEN]
 
         yield (c, a), (o, r)
@@ -61,7 +62,7 @@ MODEL = None
 
 @EX.main
 def main(SEQ_LEN, W, H, internal_size, batch_size, steps_per_epoch, lr,
-         weight_decay, should_preload_model):
+         weight_decay, should_preload_model, epochs):
     global MODEL
     input_generator = tfh.make_dataset(
         lambda: data_input(W, H, SEQ_LEN),
@@ -105,7 +106,7 @@ def main(SEQ_LEN, W, H, internal_size, batch_size, steps_per_epoch, lr,
         validation_data=input_generator,
         validation_steps=2,
         steps_per_epoch=steps_per_epoch,
-        epochs=100,
+        epochs=epochs,
         callbacks=callbacks,
     )
 
