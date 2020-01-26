@@ -50,7 +50,7 @@ def on_batch_begin(model, input_generator):
         EX.log_scalar('loss', loss)
         EX.log_scalar('val_loss', val_loss)
 
-    pred_rollout_name = 'pred_rollout.png'
+    pred_rollout_name = 'pred_rollout_2.png'
     plt.savefig(pred_rollout_name)
     EX.add_artifact(pred_rollout_name)
     plt.show()
@@ -76,7 +76,7 @@ def main(SEQ_LEN, W, H, internal_size, batch_size, steps_per_epoch, lr,
     )
     MODEL.net.summary()
 
-    model_img_name = 'conditioned_drnn.png'
+    model_img_name = 'conditioned_drnn_64_scaled_renderer.png'
     tf.keras.utils.plot_model(
         MODEL.net,
         show_layer_names=True,

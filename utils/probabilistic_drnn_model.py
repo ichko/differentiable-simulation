@@ -8,14 +8,19 @@ import tensorflow.keras.layers as kl
 import tf_helpers as tfh
 
 
-def de_conv(f, ks, s, a):
-    return kl.TimeDistributed(
+def de_conv(f, ks, s, a, bn=False):
+    layers = [conv = kl.TimeDistributed(
         kl.Conv2DTranspose(
             filters=f,
             kernel_size=(ks, ks),
             strides=(s, s),
             activation=a,
-        ))
+        ))]
+
+    if bn:
+        layers.append(kl.BatchNormalization())
+    
+    return tf.Sequential(layers)
 
 
 def mk_sampler(internal_size):
@@ -50,9 +55,9 @@ def mk_recurrence(input_shape, internal_size):
 
     x = tfh.drnn(type='gru', size=internal_size, skip=1, name='gru1')(i, s)
     x = kl.BatchNormalization()(x)
-    x = tfh.drnn(type='gru', size=internal_size, skip=4, name='gru2')(x)
+    x = tfh.drnn(type='gru', size=internal_size, skip=4, name='gru4')(x)
     x = kl.BatchNormalization()(x)
-    x = tfh.drnn(type='gru', size=internal_size, skip=1, name='gru3')(x)
+    x = tfh.drnn(type='gru', size=internal_size, skip=8, name='gru8')(x)
     x = kl.BatchNormalization()(x)
 
     return tf.keras.Model([i, s], x, name='memory')
@@ -61,20 +66,22 @@ def mk_recurrence(input_shape, internal_size):
 def mk_renderer(input_size):
     # There is a memory leak issue with TimeDistributed
     # https://github.com/tensorflow/tensorflow/issues/33178
-    start_size = 16
+    start_size = 12
     return tf.keras.Sequential(
         [
             kl.Input((None, input_size)),
             kl.Dense(start_size * start_size),
             kl.BatchNormalization(),
-            kl.Reshape((-1, start_size, start_size, 1)),
-            de_conv(f=128, ks=2, s=2, a='relu'),  # 32
-            kl.BatchNormalization(),
-            de_conv(f=64, ks=2, s=2, a='relu'),  # 64
-            kl.BatchNormalization(),
-            de_conv(f=16, ks=2, s=2, a='relu'),  # 128
-            kl.BatchNormalization(),
-            de_conv(f=3, ks=1, s=1, a='sigmoid'),
+            de_conv(16 , 2, 1, 'relu'   , bn=True ),
+            de_conv(32 , 2, 2, 'relu'   , bn=True ),
+            de_conv(64 , 3, 1, 'relu'   , bn=True ),
+            de_conv(64 , 3, 2, 'relu'   , bn=True ),
+            de_conv(128, 4, 1, 'relu'   , bn=True ),
+            de_conv(128, 4, 2, 'relu'   , bn=True ),
+            de_conv(64 , 3, 1, 'relu'   , bn=True ),
+            de_conv(64 , 3, 1, 'relu'   , bn=True ),
+            de_conv(32 , 4, 1, 'relu'   , bn=True ),
+            de_conv(3  , 1, 1, 'sigmoid', bn=False),
         ],
         name='renderer',
     )
