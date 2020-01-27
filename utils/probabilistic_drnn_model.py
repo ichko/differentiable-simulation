@@ -132,12 +132,15 @@ class DRNN:
         latent_memory = self.sampler(latent_memory)
 
         observation = self.renderer(latent_memory)
-        print(observation.shape)
         reward = self.reward(latent_memory)
 
+        
         self.net = tf.keras.Model([condition, action], [observation, reward])
         self.net.compile(
-            loss='binary_crossentropy',
+            loss=tf.keras.losses.BinaryCrossentropy(
+                from_logits=True,
+                label_smoothing=0.1,
+            ),
             optimizer=tfa.optimizers.AdamW(
                 learning_rate=lr,
                 weight_decay=weight_decay,
