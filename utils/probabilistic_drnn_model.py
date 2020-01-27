@@ -138,7 +138,6 @@ class DRNN:
         self.net = tf.keras.Model([condition, action], [observation, reward])
         self.net.compile(
             loss=tf.keras.losses.BinaryCrossentropy(
-                from_logits=True,
                 label_smoothing=0.1,
             ),
             optimizer=tfa.optimizers.AdamW(
