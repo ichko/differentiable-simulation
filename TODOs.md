@@ -1,10 +1,19 @@
 # TODO
 
+**04.02.2020**
+- [ ] Read [DNC paper](https://www.gwern.net/docs/rl/2016-graves.pdf)
+- [ ] Read [IMPROVING DIFFERENTIABLE NEURAL COMPUTERS - Schmidhuber](https://openreview.net/pdf?id=HyGEM3C9KQ)
+- [ ] Try implementation
+ - (DeepMind/DNC)[https://github.com/deepmind/dnc]
+ - (pytorch - xdever/dnc)[https://github.com/xdever/dnc]
+- [ ] Try to implement it yourself? (or at least understand other people's implementation)
+
 **26.01.2020**
-- 
+- smth smth
+- waste time with cppn training
+- decide to work with DNC
 
 **14.01.2020**
-
 - [x] Pull out initial conditions from the code of the environment
    - Pull out the polygon defining the track (condition the model on the polygon)
    - [Code of the environment](https://github.com/openai/gym/blob/master/gym/envs/box2d/car_racing.py)
