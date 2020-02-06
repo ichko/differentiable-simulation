@@ -4,8 +4,8 @@
 - [ ] Read [DNC paper](https://www.gwern.net/docs/rl/2016-graves.pdf)
 - [ ] Read [IMPROVING DIFFERENTIABLE NEURAL COMPUTERS - Schmidhuber](https://openreview.net/pdf?id=HyGEM3C9KQ)
 - [ ] Try implementation
- - (DeepMind/DNC)[https://github.com/deepmind/dnc]
- - (pytorch - xdever/dnc)[https://github.com/xdever/dnc]
+   - [DeepMind/DNC](https://github.com/deepmind/dnc)
+   - [pytorch - xdever/dnc](https://github.com/xdever/dnc)
 - [ ] Try to implement it yourself? (or at least understand other people's implementation)
 
 **26.01.2020**
