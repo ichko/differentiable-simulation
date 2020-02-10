@@ -4,8 +4,15 @@
 - [ ] Read [DNC paper](https://www.gwern.net/docs/rl/2016-graves.pdf)
 - [ ] Read [IMPROVING DIFFERENTIABLE NEURAL COMPUTERS - Schmidhuber](https://openreview.net/pdf?id=HyGEM3C9KQ)
 - [ ] Try implementation
+   - [CUDA RNN in pytorch](https://pytorch.org/blog/optimizing-cuda-rnn-with-torchscript/)
+      - Useful example of `jit.ScriptModule`
+      - Fusing CUDA kernels
+      - **For loop unrolling** - sounds like a big deal for rnn
+   - [Introduction to torchscript](https://pytorch.org/tutorials/beginner/Intro_to_TorchScript_tutorial.html)
+      - Useful examples of scripting, tracing, saving and loading
    - [DeepMind/DNC](https://github.com/deepmind/dnc)
-   - [pytorch - xdever/dnc](https://github.com/xdever/dnc)
+   - [x] [pytorch - xdever/dnc](https://github.com/xdever/dnc)
+      - Kinda slow
 - [ ] Try to implement it yourself? (or at least understand other people's implementation)
 
 **26.01.2020**
