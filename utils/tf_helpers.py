@@ -119,7 +119,7 @@ def get_generator_shape(generator):
         return tuple(map_to_shape(e) for e in el) \
             if type(el) is tuple \
             else el.shape
-        
+
     return map_to_shape(next(generator()))
 
 
@@ -128,7 +128,7 @@ def get_generator_type(generator):
         return tuple(map_to_type(e) for e in el) \
             if type(el) is tuple \
             else el.dtype
-        
+
     return map_to_type(next(generator()))
 
 
