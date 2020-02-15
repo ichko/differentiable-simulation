@@ -56,7 +56,8 @@ I recon it will be interesting to analyze how different parts of the state influ
   - [Symposium: Deep Learning - Alex Graves](https://www.youtube.com/watch?v=_H0i0IhEO2g)
   - [Neural Turing Machines](https://www.youtube.com/watch?v=Ensr41dfEp0)
   - [RNN Symposium 2016: Alex Graves - Differentiable Neural Computer](https://www.youtube.com/watch?v=steioHoiEms)
-
+  - [HDSI Unsupervised Deep Learning Tutorial - Alex Graves](https://youtu.be/DSYzHPW26Ig?t=1389)
+    - cool quotes
 
 ## Examples of progress so far
 
