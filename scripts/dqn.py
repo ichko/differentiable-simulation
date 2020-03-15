@@ -41,7 +41,7 @@ class DQN(nn.Module):
                 nn.Flatten(),
                 dense(obs_size, hidden_dim, nn.ReLU),
                 dense(hidden_dim, hidden_dim, nn.ReLU),
-                dense(hidden_dim, num_actions, nn.ReLU),
+                nn.Linear(hidden_dim, num_actions),
             ).to(DEVICE)
 
         self.eval_net = make_dqn()
@@ -63,7 +63,7 @@ class DQN(nn.Module):
 
     # https://github.com/cyoon1729/deep-Q-networks/blob/master/vanillaDQN/dqn.py#L51
     def loss(self, i, batch):
-        discount = 0.999
+        discount = 0.99
         criterion = nn.MSELoss()
 
         if i % 100:
@@ -83,14 +83,19 @@ class DQN(nn.Module):
         return criterion(q_vals, target_q_vals)
 
 
-def get_experience_generator(env, model, bs, greediness):
+def get_experience_generator(env, model, bs):
     max_rollout_steps = 200
     buffer_size = 100_000
+    randomness = 1
+    randomness_decay = 0.001
+    randomness_min = 0.05
 
     episode_rewards = []
     experience_pool = deque(maxlen=buffer_size)
 
     while True:
+        randomness = max(randomness_min, randomness - randomness_decay)
+
         obs = env.reset()
         done = False
         step = 0
@@ -99,7 +104,7 @@ def get_experience_generator(env, model, bs, greediness):
         while not done and step < max_rollout_steps:
             step += 1
 
-            use_model = random.random() < greediness
+            use_model = random.random() > randomness
             if use_model:
                 action = model.get_max_action(obs)
             else:
@@ -191,6 +196,5 @@ if __name__ == '__main__':
             env,
             dqn,
             bs=32,
-            greediness=0.5,
         ),
     )
