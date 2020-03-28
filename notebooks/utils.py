@@ -4,7 +4,7 @@ import os
 import io
 import time
 import random
-from collections import deque
+from collections import deque, defaultdict
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -115,91 +115,60 @@ class DQNAgent(nn.Module):
 
         return criterion(q_vals, target_q_vals)
 
+    def optimizer(self, next_batch, lr):
+        optim = torch.optim.Adam(params=self.eval_net.parameters(), lr=lr)
 
-def get_experience_generator(
-    env,
-    model,
-    bs,
-    randomness=1,
-    randomness_min=0.01,
-    randomness_decay=0.9993,
-):
-    max_rollout_steps = 500
-    buffer_size = 100_000
+        for i, batch in enumerate(next_batch):
+            optim.zero_grad()
+            loss = self.loss(i, batch)
+            loss.backward()
+            optim.step()
 
-    episode_rewards = []
-    randomness_list = []
-    experience_pool = deque(maxlen=buffer_size)
-
-    while True:
-        obs = env.reset()
-        done = False
-        step = 0
-        episode_rewards.append(0)
-
-        while not done and step < max_rollout_steps:
-            randomness = max(randomness_min, randomness * randomness_decay)
-            randomness_list.append(randomness)
-            step += 1
-
-            use_model = random.uniform(0, 1) > randomness
-            if use_model:
-                action = model(obs)
-            else:
-                action = env.action_space.sample()
-
-            next_obs, reward, done, _info = env.step(action)
-            experience_pool.append((obs, action, reward, next_obs, done))
-            obs = next_obs
-            episode_rewards[-1] += reward
-
-            if len(experience_pool) >= bs:
-                batch = random.sample(experience_pool, bs)
-                yield [np.array(t)
-                       for t in zip(*batch)], episode_rewards, randomness_list
+            yield dict(loss=loss.item())
 
 
-def dqn_optimize(env, model, its, next_batch, lr):
-    tr = trange(its, bar_format="{bar}{l_bar}{r_bar}")
-    fig, ((ax_loss, ax_reward, ax_eps)) = plt.subplots(1, 3, figsize=(12, 3))
-    losses = []
-    loss_avgs = []
-    it_ids = []
+class ExperienceGenerator:
+    def __call__(
+        self,
+        env,
+        model,
+        bs,
+        randomness=1,
+        randomness_min=0.01,
+        randomness_decay=0.9993,
+    ):
+        max_rollout_steps = 500
+        buffer_size = 100_000
 
-    optimizer = torch.optim.Adam(params=model.eval_net.parameters(), lr=lr)
+        self.episode_rewards = []
+        self.randomness_list = []
+        experience_pool = deque(maxlen=buffer_size)
 
-    for i in tr:
-        it_ids.append(i)
-        batch, episode_rewards, randomness_list = next(next_batch)
+        while True:
+            obs = env.reset()
+            done = False
+            step = 0
+            self.episode_rewards.append(0)
 
-        optimizer.zero_grad()
-        loss = model.loss(i, batch)
-        loss.backward()
-        optimizer.step()
-        losses.append(loss.item())
-        loss_avgs.append(np.mean(losses[-20:]))
+            while not done and step < max_rollout_steps:
+                randomness = max(randomness_min, randomness * randomness_decay)
+                self.randomness_list.append(randomness)
+                step += 1
 
-        description = [
-            'it %i/%i' % (i + 1, its),
-            'loss: %.6f' % loss.item(),
-            'reward moving avg: %.2f' % np.mean(episode_rewards[-50:-1]),
-            ' #### ',
-        ]
+                use_model = random.uniform(0, 1) > randomness
+                if use_model:
+                    action = model(obs)
+                else:
+                    action = env.action_space.sample()
 
-        if i % 200 == 0:
-            ax_loss.clear()
-            ax_loss.plot(it_ids[-500:], losses[-500:], linewidth=1)
-            ax_loss.plot(it_ids[-500:], loss_avgs[-500:], linewidth=2)
+                next_obs, reward, done, _info = env.step(action)
+                experience_pool.append((obs, action, reward, next_obs, done))
+                obs = next_obs
+                self.episode_rewards[-1] += reward
 
-            ax_reward.clear()
-            ax_reward.plot(episode_rewards[:-1], linewidth=2)
-
-            ax_eps.clear()
-            ax_eps.plot(randomness_list, linewidth=2)
-
-            fig.canvas.draw()
-
-        tr.set_description(' | '.join(description))
+                if len(experience_pool) >= bs:
+                    batch = random.sample(experience_pool, bs)
+                    yield [np.array(t) for t in zip(*batch)]
 
 
 def play_env(env, agent, duration):
@@ -239,3 +208,57 @@ def i_python_display_frames(frames_generator, fps=100):
     except KeyboardInterrupt as _e:
         clear_display()
         show_array(frame)  # show last frame
+
+
+class Plotter:
+    def __init__(self, rows=1):
+        self.rows = rows
+        self.history = defaultdict(lambda: [])
+        self.history_avg = defaultdict(lambda: [])
+
+    def log(self, **info):
+        for name, value in sorted(info.items()):
+            if type(value) is list:
+                self.history[name] = value
+            else:
+                self.history[name].append(value)
+                vals_so_far = self.history[name]
+
+                avg_size = 20
+                self.history_avg[name].append(np.mean(vals_so_far[-avg_size:]))
+
+    def plot(self):
+        num_axs = len(self.history)
+        cols = round(num_axs / self.rows)
+
+        if not hasattr(self, 'fig'):
+            self.fig, self.axs = plt.subplots(
+                self.rows,
+                cols,
+                figsize=(cols * 4, self.rows * 3),
+            )
+            self.fig.tight_layout()
+            plt.ion()
+            plt.show()
+
+            # Wrap if its 1x1 plot
+            if type(self.axs) is not np.ndarray:
+                self.axs = [self.axs]
+
+            # Flatten if its NxM ploy
+            if type(self.axs[0]) is np.ndarray:
+                self.axs = [a for ax in self.axs for a in ax]
+
+        window_plot_size = 500
+
+        for ax, (name, _value) in zip(self.axs, sorted(self.history.items())):
+            ax.clear()
+            ax.set_title(name)
+
+            ax.plot(self.history[name][-window_plot_size:], linewidth=2)
+            if name in self.history_avg:
+                ax.plot(self.history_avg[name][-window_plot_size:],
+                        linewidth=2)
+
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
