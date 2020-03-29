@@ -200,7 +200,12 @@ def i_python_display_frames(frames_generator, fps=100):
     try:
         for frame in frames_generator:
             time.sleep(1 / fps)
+
+            frame_min, frame_max = frame.min(), frame.max()
+            frame = (frame + frame_min) / (frame_max - frame_min) * 255
+            frame = frame.astype(np.uint8)
             frame = cv2.resize(frame, (256, 265))
+
             clear_display()
             show_array(frame)
 
@@ -320,6 +325,49 @@ class RNNWorldRepresentations(nn.Module):
             yield dict(loss=loss.item())
 
 
-def rollout_generator():
-    # TODO: Implement
-    pass
+def rollout_generator(
+    env,
+    agent,
+    bs,
+    max_seq_len,
+    buffer_size,
+    yield_renders=True,
+):
+    ''' Yields batches of episodes - (ep_id, actions, observations, renders) '''
+
+    buffer = []
+
+    def get_batch():
+        batch = random.sample(buffer, bs)
+        return [np.array(t) for t in zip(*batch)]
+
+    for ep_id in range(buffer_size):
+        obs = env.reset()
+        done = False
+
+        actions = np.zeros((max_seq_len, *env.action_space.shape))
+        observations = np.zeros((max_seq_len, *obs.shape))
+
+        if yield_renders:
+            render = env.render('rgb_array')
+            renders = np.zeros((max_seq_len, *render.shape))
+
+        for i in range(max_seq_len):
+            action = agent(obs)
+            actions[i] = action
+            observations[i] = obs
+            if yield_renders: renders[i] = env.render('rgb_array')
+
+            obs, _reward, done, _info = env.step(action)
+
+            if len(buffer) >= bs: yield get_batch()
+            if done: break
+
+        episode = ep_id, actions, observations
+        if yield_renders:
+            episode = ep_id, actions, observations, renders
+
+        buffer.append(episode)
+
+    while True:
+        yield get_batch()
