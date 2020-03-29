@@ -57,7 +57,11 @@ I recon it will be interesting to analyze how different parts of the state influ
   - [Neural Turing Machines](https://www.youtube.com/watch?v=Ensr41dfEp0)
   - [RNN Symposium 2016: Alex Graves - Differentiable Neural Computer](https://www.youtube.com/watch?v=steioHoiEms)
   - [HDSI Unsupervised Deep Learning Tutorial - Alex Graves](https://youtu.be/DSYzHPW26Ig?t=1389)
+
     - cool quotes
+
+  - RL
+    [Deep RL Bootcamp Lecture 6: Nuts and Bolts of Deep RL Experimentation](https://www.youtube.com/watch?v=8EcdaCk9KaQ)
 
 ## Examples of progress so far
 
@@ -67,7 +71,6 @@ not much but it's honest work
   ![split screen](assets/gru-gru-long-test.gif)
 - Up - True frame, Down - Predicted frame
   ![training progress](assets/training_progress.png)
-
 
 ## Ideas for research
 
