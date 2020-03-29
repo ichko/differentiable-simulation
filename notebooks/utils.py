@@ -136,10 +136,9 @@ class ExperienceGenerator:
         randomness=1,
         randomness_min=0.01,
         randomness_decay=0.9993,
+        max_rollout_steps=500,
+        buffer_size=100_000,
     ):
-        max_rollout_steps = 500
-        buffer_size = 100_000
-
         self.episode_rewards = []
         self.randomness_list = []
         experience_pool = deque(maxlen=buffer_size)
@@ -262,3 +261,65 @@ class Plotter:
 
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
+
+
+class RNNWorldRepresentations(nn.Module):
+    def __init__(self, obs_shape, actions_shape, num_rollouts):
+        super(RNNWorldRepresentations, self).__init__()
+
+        obs_size = np.prod(obs_shape)
+        self.rnn_num_layers = 2
+        rnn_inp_size = 128
+        rnn_hidden_size = 64
+
+        self.precondition = nn.Embedding(
+            num_embeddings=num_rollouts,
+            embedding_dim=rnn_hidden_size * 2,
+        )
+
+        self.action_encoder = nn.Sequential(
+            nn.Flatten(),
+            dense(np.prod(actions_shape), rnn_inp_size),
+        )
+
+        self.time_transition = nn.GRU(
+            rnn_inp_size,
+            rnn_hidden_size,
+            num_layers=self.rnn_num_layers,
+            batch_first=True,
+        )
+
+        self.obs_decoder = nn.Sequential(
+            dense(rnn_hidden_size, 512, nn.ReLU),
+            dense(512, 512, nn.ReLU),
+            dense(512, obs_size, nn.Sigmoid),
+            lam(lambda x: x.reshape(*obs_shape)),
+        )
+
+    def optimizer(self, next_batch, lr):
+        optim = torch.optim.Adam(self.parameters(), lr=lr)
+        criterion = nn.BCELoss()
+
+        for (idx, actions), obs in next_batch:
+            optim.zero_grad()
+
+            preconditions = self.precondition(idx)
+            preconditions = torch.stack(
+                preconditions.chunk(self.rnn_num_layers, dim=1),
+                dim=0,
+            )
+
+            encoded_actions = self.action_encoder(actions)
+            memory = self.time_transition(encoded_actions, preconditions)
+            pred_obs = self.obs_decoder(memory)
+
+            loss = criterion(pred_obs, obs)
+            loss.backward()
+            optim.step()
+
+            yield dict(loss=loss.item())
+
+
+def rollout_generator():
+    # TODO: Implement
+    pass
