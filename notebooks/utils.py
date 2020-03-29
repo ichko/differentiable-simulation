@@ -53,18 +53,22 @@ def lam(func):
     return Lambda()
 
 
-def model_persistor(model, path):
-    def persist():
-        torch.save(model.state_dict(), path)
+class PersistedModel:
+    def make_persisted(self, path):
+        self.path = path
 
-    def load_if_exists():
-        if os.path.isfile(path):
-            model.load_state_dict(torch.load(path))
+    def persist(self):
+        torch.save(self.state_dict(), self.path)
 
-    return persist, load_if_exists
+    def load_persisted_if_exists(self):
+        if os.path.isfile(self.path):
+            self.load_state_dict(torch.load(self.path))
+
+    def can_be_preloaded(self):
+        return os.path.isfile(self.path)
 
 
-class DQNAgent(nn.Module):
+class DQNAgent(nn.Module, PersistedModel):
     def __init__(self, obs_size, num_actions):
         super(DQNAgent, self).__init__()
 
@@ -131,7 +135,7 @@ class ExperienceGenerator:
     def __call__(
         self,
         env,
-        model,
+        agent,
         bs,
         randomness=1,
         randomness_min=0.01,
@@ -156,7 +160,7 @@ class ExperienceGenerator:
 
                 use_model = random.uniform(0, 1) > randomness
                 if use_model:
-                    action = model(obs)
+                    action = agent(obs)
                 else:
                     action = env.action_space.sample()
 
@@ -204,7 +208,7 @@ def i_python_display_frames(frames_generator, fps=100):
             frame_min, frame_max = frame.min(), frame.max()
             frame = (frame + frame_min) / (frame_max - frame_min) * 255
             frame = frame.astype(np.uint8)
-            frame = cv2.resize(frame, (256, 265))
+            # frame = cv2.resize(frame, (256, 265))
 
             clear_display()
             show_array(frame)
@@ -269,8 +273,9 @@ class Plotter:
 
 
 class RNNWorldRepresentations(nn.Module):
-    def __init__(self, obs_shape, actions_shape, num_rollouts):
+    def __init__(self, obs_shape, num_actions, num_rollouts):
         super(RNNWorldRepresentations, self).__init__()
+        print(obs_shape)
 
         obs_size = np.prod(obs_shape)
         self.rnn_num_layers = 2
@@ -280,32 +285,37 @@ class RNNWorldRepresentations(nn.Module):
         self.precondition = nn.Embedding(
             num_embeddings=num_rollouts,
             embedding_dim=rnn_hidden_size * 2,
-        )
+        ).to(DEVICE)
 
-        self.action_encoder = nn.Sequential(
-            nn.Flatten(),
-            dense(np.prod(actions_shape), rnn_inp_size),
-        )
+        self.action_encoder = dense(
+            num_actions,
+            rnn_inp_size,
+            a=nn.Tanh,
+        ).to(DEVICE)
 
         self.time_transition = nn.GRU(
             rnn_inp_size,
             rnn_hidden_size,
             num_layers=self.rnn_num_layers,
             batch_first=True,
-        )
+        ).to(DEVICE)
 
         self.obs_decoder = nn.Sequential(
             dense(rnn_hidden_size, 512, nn.ReLU),
             dense(512, 512, nn.ReLU),
             dense(512, obs_size, nn.Sigmoid),
-            lam(lambda x: x.reshape(*obs_shape)),
-        )
+            lam(lambda x: x.reshape(-1, *obs_shape)),
+        ).to(DEVICE)
 
     def optimizer(self, next_batch, lr):
         optim = torch.optim.Adam(self.parameters(), lr=lr)
         criterion = nn.BCELoss()
 
         for (idx, actions), obs in next_batch:
+            idx = torch.LongTensor(idx).to(DEVICE)
+            actions = torch.FloatTensor(actions).to(DEVICE)
+            obs = torch.FloatTensor(obs).to(DEVICE)
+
             optim.zero_grad()
 
             preconditions = self.precondition(idx)
@@ -315,7 +325,7 @@ class RNNWorldRepresentations(nn.Module):
             )
 
             encoded_actions = self.action_encoder(actions)
-            memory = self.time_transition(encoded_actions, preconditions)
+            memory, _ = self.time_transition(encoded_actions, preconditions)
             pred_obs = self.obs_decoder(memory)
 
             loss = criterion(pred_obs, obs)
@@ -331,9 +341,10 @@ def rollout_generator(
     bs,
     max_seq_len,
     buffer_size,
-    yield_renders=True,
+    yield_frames=True,
+    frame_size=None,
 ):
-    ''' Yields batches of episodes - (ep_id, actions, observations, renders) '''
+    ''' Yields batches of episodes - (ep_id, actions, observations, frames?) '''
 
     buffer = []
 
@@ -348,26 +359,39 @@ def rollout_generator(
         actions = np.zeros((max_seq_len, *env.action_space.shape))
         observations = np.zeros((max_seq_len, *obs.shape))
 
-        if yield_renders:
-            render = env.render('rgb_array')
-            renders = np.zeros((max_seq_len, *render.shape))
+        if yield_frames:
+            frame = env.render('rgb_array')
+            # Reverse to preserve in (W, H) form
+            frame_size = frame.shape[:2][::-1] \
+                if frame_size is None else frame_size
+
+            # Assume RGB (3 channel) rendering
+            frames = np.zeros((max_seq_len, *frame_size[::-1], 3))
 
         for i in range(max_seq_len):
             action = agent(obs)
             actions[i] = action
             observations[i] = obs
-            if yield_renders: renders[i] = env.render('rgb_array')
+            if yield_frames:
+                frame = env.render('rgb_array')
+                frames[i] = cv2.resize(frame, frame_size)
 
             obs, _reward, done, _info = env.step(action)
 
             if len(buffer) >= bs: yield get_batch()
             if done: break
 
-        episode = ep_id, actions, observations
-        if yield_renders:
-            episode = ep_id, actions, observations, renders
-
-        buffer.append(episode)
+        buffer.append([ep_id, actions, observations] +
+                      ([frames] if yield_frames else []))
 
     while True:
         yield get_batch()
+
+
+def one_hot(data):
+    flat_data = data.reshape(-1)
+    one_hot = np.zeros((flat_data.size, data.max() + 1))
+    rows = np.arange(flat_data.size)
+    one_hot[rows, data.reshape(-1)] = 1
+
+    return one_hot.astype(np.int32).reshape((*data.shape, -1))
