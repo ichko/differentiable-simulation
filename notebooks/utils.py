@@ -192,7 +192,7 @@ def play_env(env, agent, duration):
 
 def i_python_display_frames(frames_generator, fps=100):
     # https://github.com/NicksonYap/Jupyter-Webcam/blob/master/Realtime_video_ipython_py3.ipynb
-    def show_array(colorMatrix, prev_display_id=None, fmt='jpeg'):
+    def show_array(colorMatrix, prev_display_id=None, fmt='png'):
         f = io.BytesIO()
         PIL.Image.fromarray(colorMatrix).save(f, fmt)
         obj = IPython.display.Image(data=f.getvalue())
@@ -205,8 +205,11 @@ def i_python_display_frames(frames_generator, fps=100):
         for frame in frames_generator:
             time.sleep(1 / fps)
 
-            frame_min, frame_max = frame.min(), frame.max()
-            frame = (frame + frame_min) / (frame_max - frame_min) * 255
+            # frame_min, frame_max = frame.min(), frame.max()
+            # frame = (frame + frame_min) / (frame_max - frame_min) * 255
+            if frame.max() <= 1:
+                frame *= 255
+
             frame = frame.astype(np.uint8)
             # frame = cv2.resize(frame, (256, 265))
 
@@ -272,15 +275,15 @@ class Plotter:
         self.fig.canvas.flush_events()
 
 
-class RNNWorldRepresentations(nn.Module):
-    def __init__(self, obs_shape, num_actions, num_rollouts):
+class RNNWorldRepresentations(nn.Module, PersistedModel):
+    def __init__(self, obs_shape, num_actions, seq_len, num_rollouts):
         super(RNNWorldRepresentations, self).__init__()
         print(obs_shape)
 
         obs_size = np.prod(obs_shape)
         self.rnn_num_layers = 2
-        rnn_inp_size = 128
-        rnn_hidden_size = 64
+        rnn_inp_size = 16
+        rnn_hidden_size = 16
 
         self.precondition = nn.Embedding(
             num_embeddings=num_rollouts,
@@ -301,33 +304,37 @@ class RNNWorldRepresentations(nn.Module):
         ).to(DEVICE)
 
         self.obs_decoder = nn.Sequential(
-            dense(rnn_hidden_size, 512, nn.ReLU),
-            dense(512, 512, nn.ReLU),
-            dense(512, obs_size, nn.Sigmoid),
-            lam(lambda x: x.reshape(-1, *obs_shape)),
+            dense(rnn_hidden_size, 128, nn.ReLU),
+            dense(128, 128, nn.ReLU),
+            dense(128, obs_size, nn.Sigmoid),
+            lam(lambda x: x.reshape(-1, seq_len, *obs_shape)),
         ).to(DEVICE)
+
+    def forward(self, ids, actions):
+        ids = torch.LongTensor(ids).to(DEVICE)
+        actions = torch.FloatTensor(actions).to(DEVICE)
+
+        preconditions = self.precondition(ids)
+        preconditions = torch.stack(
+            preconditions.chunk(self.rnn_num_layers, dim=1),
+            dim=0,
+        )
+
+        encoded_actions = self.action_encoder(actions)
+        memory, _ = self.time_transition(encoded_actions, preconditions)
+        pred_obs = self.obs_decoder(memory)
+
+        return pred_obs
 
     def optimizer(self, next_batch, lr):
         optim = torch.optim.Adam(self.parameters(), lr=lr)
         criterion = nn.BCELoss()
 
-        for (idx, actions), obs in next_batch:
-            idx = torch.LongTensor(idx).to(DEVICE)
-            actions = torch.FloatTensor(actions).to(DEVICE)
+        for (ids, actions), obs in next_batch:
             obs = torch.FloatTensor(obs).to(DEVICE)
 
             optim.zero_grad()
-
-            preconditions = self.precondition(idx)
-            preconditions = torch.stack(
-                preconditions.chunk(self.rnn_num_layers, dim=1),
-                dim=0,
-            )
-
-            encoded_actions = self.action_encoder(actions)
-            memory, _ = self.time_transition(encoded_actions, preconditions)
-            pred_obs = self.obs_decoder(memory)
-
+            pred_obs = self(ids, actions)
             loss = criterion(pred_obs, obs)
             loss.backward()
             optim.step()
@@ -335,57 +342,68 @@ class RNNWorldRepresentations(nn.Module):
             yield dict(loss=loss.item())
 
 
-def rollout_generator(
-    env,
-    agent,
-    bs,
-    max_seq_len,
-    buffer_size,
-    yield_frames=True,
-    frame_size=None,
-):
-    ''' Yields batches of episodes - (ep_id, actions, observations, frames?) '''
+class RolloutGenerator:
+    def __init__(self, *args, **kwargs):
+        self.generator = self.make_generator(*args, **kwargs)
 
-    buffer = []
+    def __iter__(self):
+        return self
 
-    def get_batch():
-        batch = random.sample(buffer, bs)
-        return [np.array(t) for t in zip(*batch)]
+    def __next__(self):
+        return next(self.generator)
 
-    for ep_id in range(buffer_size):
-        obs = env.reset()
-        done = False
+    def make_generator(
+        self,
+        env,
+        agent,
+        bs,
+        max_seq_len,
+        buffer_size,
+        yield_frames=True,
+        frame_size=None,
+    ):
+        ''' Yields batches of episodes - (ep_id, actions, observations, frames?) '''
 
-        actions = np.zeros((max_seq_len, *env.action_space.shape))
-        observations = np.zeros((max_seq_len, *obs.shape))
+        self.buffer = []
 
-        if yield_frames:
-            frame = env.render('rgb_array')
-            # Reverse to preserve in (W, H) form
-            frame_size = frame.shape[:2][::-1] \
-                if frame_size is None else frame_size
+        def get_batch():
+            batch = random.sample(self.buffer, bs)
+            return [np.array(t) for t in zip(*batch)]
 
-            # Assume RGB (3 channel) rendering
-            frames = np.zeros((max_seq_len, *frame_size[::-1], 3))
+        for ep_id in range(buffer_size):
+            obs = env.reset()
+            done = False
 
-        for i in range(max_seq_len):
-            action = agent(obs)
-            actions[i] = action
-            observations[i] = obs
+            actions = np.zeros((max_seq_len, *env.action_space.shape))
+            observations = np.zeros((max_seq_len, *obs.shape))
+
             if yield_frames:
                 frame = env.render('rgb_array')
-                frames[i] = cv2.resize(frame, frame_size)
+                # Reverse to preserve in (W, H) form
+                frame_size = frame.shape[:2][::-1] \
+                    if frame_size is None else frame_size
 
-            obs, _reward, done, _info = env.step(action)
+                # Assume RGB (3 channel) rendering
+                frames = np.zeros((max_seq_len, *frame_size[::-1], 3))
 
-            if len(buffer) >= bs: yield get_batch()
-            if done: break
+            for i in range(max_seq_len):
+                action = agent(obs)
+                actions[i] = action
+                observations[i] = obs
+                if yield_frames:
+                    frame = env.render('rgb_array')
+                    frames[i] = cv2.resize(frame, frame_size)
 
-        buffer.append([ep_id, actions, observations] +
-                      ([frames] if yield_frames else []))
+                obs, _reward, done, _info = env.step(action)
 
-    while True:
-        yield get_batch()
+                if len(self.buffer) >= bs: yield get_batch()
+                if done: break
+
+            self.buffer.append([ep_id, actions, observations] +
+                               ([frames] if yield_frames else []))
+
+        while True:
+            yield get_batch()
 
 
 def one_hot(data):
