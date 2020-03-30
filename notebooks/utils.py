@@ -94,14 +94,13 @@ class DQNAgent(nn.Module, PersistedModel):
         self.target_net.load_state_dict(self.eval_net.state_dict())
 
     # https://github.com/cyoon1729/deep-Q-networks/blob/master/vanillaDQN/dqn.py#L51
-    def loss(self, i, batch):
+    def loss(self, i, obs, actions, rewards, next_obs, done):
         discount = 0.95
         criterion = nn.MSELoss()
 
         if i % 50:
             self.replace_target()
 
-        obs, actions, rewards, next_obs, done = batch
         obs = torch.FloatTensor(obs).to(DEVICE)
         actions = torch.LongTensor(actions).to(DEVICE)
         rewards = torch.FloatTensor(rewards).to(DEVICE)
@@ -124,7 +123,7 @@ class DQNAgent(nn.Module, PersistedModel):
 
         for i, batch in enumerate(next_batch):
             optim.zero_grad()
-            loss = self.loss(i, batch)
+            loss = self.loss(i, **batch)
             loss.backward()
             optim.step()
 
@@ -132,7 +131,16 @@ class DQNAgent(nn.Module, PersistedModel):
 
 
 class ExperienceGenerator:
-    def __call__(
+    def __init__(self, *args, **kwargs):
+        self.generator = self.make_generator(*args, **kwargs)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return next(self.generator)
+
+    def make_generator(
         self,
         env,
         agent,
@@ -145,12 +153,14 @@ class ExperienceGenerator:
     ):
         self.episode_rewards = []
         self.randomness_list = []
-        experience_pool = deque(maxlen=buffer_size)
+        self.buffer = deque(maxlen=buffer_size)
+        self.episodes_len = []
 
         while True:
             obs = env.reset()
             done = False
             step = 0
+            self.episodes_len.append(0)
             self.episode_rewards.append(0)
 
             while not done and step < max_rollout_steps:
@@ -159,19 +169,28 @@ class ExperienceGenerator:
                 step += 1
 
                 use_model = random.uniform(0, 1) > randomness
-                if use_model:
-                    action = agent(obs)
-                else:
-                    action = env.action_space.sample()
+                if use_model: action = agent(obs)
+                else: action = env.action_space.sample()
 
                 next_obs, reward, done, _info = env.step(action)
-                experience_pool.append((obs, action, reward, next_obs, done))
+                self.buffer.append((obs, action, reward, next_obs, done))
                 obs = next_obs
                 self.episode_rewards[-1] += reward
+                self.episodes_len[-1] += 1
 
-                if len(experience_pool) >= bs:
-                    batch = random.sample(experience_pool, bs)
-                    yield [np.array(t) for t in zip(*batch)]
+                if len(self.buffer) >= bs:
+                    batch = random.sample(self.buffer, bs)
+                    b_obs, b_actions, b_rewards, b_next_obs, b_done = [
+                        np.array(t) for t in zip(*batch)
+                    ]
+
+                    yield dict(
+                        obs=b_obs / 255,
+                        actions=b_actions,
+                        rewards=b_rewards,
+                        next_obs=b_next_obs / 255,
+                        done=b_done,
+                    )
 
 
 def play_env(env, agent, duration):
@@ -190,7 +209,7 @@ def play_env(env, agent, duration):
             if time_step >= duration: return
 
 
-def i_python_display_frames(frames_generator, fps=100):
+def i_python_display_frames(frames_generator, fps=100, screen_size=None):
     # https://github.com/NicksonYap/Jupyter-Webcam/blob/master/Realtime_video_ipython_py3.ipynb
     def show_array(colorMatrix, prev_display_id=None, fmt='png'):
         f = io.BytesIO()
@@ -211,7 +230,10 @@ def i_python_display_frames(frames_generator, fps=100):
                 frame *= 255
 
             frame = frame.astype(np.uint8)
-            # frame = cv2.resize(frame, (256, 265))
+            if screen_size is None:
+                screen_size = frame.shape[:2][::-1]  # (W, H)
+
+            frame = cv2.resize(frame, screen_size)
 
             clear_display()
             show_array(frame)
@@ -278,7 +300,6 @@ class Plotter:
 class RNNWorldRepresentations(nn.Module, PersistedModel):
     def __init__(self, obs_shape, num_actions, seq_len, num_rollouts):
         super(RNNWorldRepresentations, self).__init__()
-        print(obs_shape)
 
         obs_size = np.prod(obs_shape)
         self.rnn_num_layers = 2
@@ -342,6 +363,13 @@ class RNNWorldRepresentations(nn.Module, PersistedModel):
             yield dict(loss=loss.item())
 
 
+def batch_info(batch):
+    return {
+        k: dict(shape=t.shape, max=t.max(), min=t.min())
+        for k, t in batch.items()
+    }
+
+
 class RolloutGenerator:
     def __init__(self, *args, **kwargs):
         self.generator = self.make_generator(*args, **kwargs)
@@ -359,16 +387,17 @@ class RolloutGenerator:
         bs,
         max_seq_len,
         buffer_size,
-        yield_frames=True,
         frame_size=None,
     ):
         ''' Yields batches of episodes - (ep_id, actions, observations, frames?) '''
 
         self.buffer = []
+        self.episodes_len = []
 
         def get_batch():
             batch = random.sample(self.buffer, bs)
-            return [np.array(t) for t in zip(*batch)]
+            ep_id, actions, obs, frames = [np.array(t) for t in zip(*batch)]
+            return dict(ep_id=ep_id, actions=actions, obs=obs, frames=frames)
 
         for ep_id in range(buffer_size):
             obs = env.reset()
@@ -376,31 +405,30 @@ class RolloutGenerator:
 
             actions = np.zeros((max_seq_len, *env.action_space.shape))
             observations = np.zeros((max_seq_len, *obs.shape))
+            self.episodes_len.append(0)
 
-            if yield_frames:
-                frame = env.render('rgb_array')
-                # Reverse to preserve in (W, H) form
-                frame_size = frame.shape[:2][::-1] \
-                    if frame_size is None else frame_size
+            frame = env.render('rgb_array')
+            # Reverse to preserve in (W, H) form
+            frame_size = frame.shape[:2][::-1] \
+                if frame_size is None else frame_size
 
-                # Assume RGB (3 channel) rendering
-                frames = np.zeros((max_seq_len, *frame_size[::-1], 3))
+            # Assume RGB (3 channel) rendering
+            frames = np.zeros((max_seq_len, *frame_size[::-1], 3))
 
             for i in range(max_seq_len):
                 action = agent(obs)
                 actions[i] = action
                 observations[i] = obs
-                if yield_frames:
-                    frame = env.render('rgb_array')
-                    frames[i] = cv2.resize(frame, frame_size)
+                frame = env.render('rgb_array')
+                frames[i] = cv2.resize(frame, frame_size)
 
                 obs, _reward, done, _info = env.step(action)
+                self.episodes_len[-1] += 1
 
                 if len(self.buffer) >= bs: yield get_batch()
                 if done: break
 
-            self.buffer.append([ep_id, actions, observations] +
-                               ([frames] if yield_frames else []))
+            self.buffer.append([ep_id, actions, observations, frames])
 
         while True:
             yield get_batch()
