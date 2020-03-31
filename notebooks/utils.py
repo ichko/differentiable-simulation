@@ -29,17 +29,6 @@ info = dict(
 )
 
 
-def use_virtual_display():
-    # Necessary to display cartpole and other envs headlessly
-    # https://stackoverflow.com/a/47968021
-    from pyvirtualdisplay.smartdisplay import SmartDisplay as Display
-
-    display = Display(visible=0, size=(1400, 900))
-    display.start()
-
-    return os.environ['DISPLAY']
-
-
 def dense(i, o, a=nn.Sigmoid):
     l = nn.Linear(i, o)
     return nn.Sequential(l, a())
@@ -51,6 +40,17 @@ def lam(func):
             return func(*args)
 
     return Lambda()
+
+
+def use_virtual_display():
+    # Necessary to display cartpole and other envs headlessly
+    # https://stackoverflow.com/a/47968021
+    from pyvirtualdisplay.smartdisplay import SmartDisplay as Display
+
+    display = Display(visible=0, size=(1400, 900))
+    display.start()
+
+    return os.environ['DISPLAY']
 
 
 class PersistedModel:
@@ -209,7 +209,35 @@ def play_env(env, agent, duration):
             if time_step >= duration: return
 
 
-def i_python_display_frames(frames_generator, fps=100, screen_size=None):
+def display_video(path):
+    from base64 import b64encode
+    from IPython.display import HTML
+
+    video = open(path, 'rb')
+    data_url = "data:video/webm;base64," + b64encode(video.read()).decode()
+    video.close()
+    return HTML('<video autoplay loop><source src="%s"></video>' % data_url)
+
+
+def frames_to_video(name, frames, fps=30, frame_size=None):
+    frames_iterator = iter(frames)
+    fourcc = cv2.VideoWriter_fourcc(*'VP80')
+    frame = next(frames_iterator)
+    H, W = frame.shape[:2]
+    frame_size = (W, H) if frame_size is None else frame_size
+    video = cv2.VideoWriter(name, fourcc, fps, frame_size)
+
+    for frame in frames_iterator:
+        frame = cv2.resize(frame, frame_size)
+        if frame.max() <= 1: frame *= 255
+        frame = frame.astype(np.uint8)
+
+        video.write(frame)
+
+    video.release()
+
+
+def i_python_display_frames(frames, fps=100, frame_size=None):
     # https://github.com/NicksonYap/Jupyter-Webcam/blob/master/Realtime_video_ipython_py3.ipynb
     def show_array(colorMatrix, prev_display_id=None, fmt='png'):
         f = io.BytesIO()
@@ -221,7 +249,7 @@ def i_python_display_frames(frames_generator, fps=100, screen_size=None):
         IPython.display.clear_output(wait=True)
 
     try:
-        for frame in frames_generator:
+        for frame in frames:
             time.sleep(1 / fps)
 
             # frame_min, frame_max = frame.min(), frame.max()
@@ -230,10 +258,10 @@ def i_python_display_frames(frames_generator, fps=100, screen_size=None):
                 frame *= 255
 
             frame = frame.astype(np.uint8)
-            if screen_size is None:
-                screen_size = frame.shape[:2][::-1]  # (W, H)
+            if frame_size is None:
+                frame_size = frame.shape[:2][::-1]  # (W, H)
 
-            frame = cv2.resize(frame, screen_size)
+            frame = cv2.resize(frame, frame_size)
 
             clear_display()
             show_array(frame)
@@ -441,3 +469,11 @@ def one_hot(data):
     one_hot[rows, data.reshape(-1)] = 1
 
     return one_hot.astype(np.int32).reshape((*data.shape, -1))
+
+
+def tile_frame_generators(generator_A, generator_B):
+    for left_frame, right_frame in zip(generator_A, generator_B):
+        H, _W = left_frame.shape[:2]
+        white_line = np.full((H, 1, 3), 255.0)
+
+        yield np.concatenate((left_frame, white_line, right_frame), axis=1)
