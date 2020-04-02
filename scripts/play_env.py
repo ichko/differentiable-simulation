@@ -3,7 +3,11 @@ import keyboard
 import time
 
 if __name__ == '__main__':
-    env = gym.make('CubeCrash-v0')
+    # BattleZone-ram-v0 - 3D tank
+    # Atlantis-ram-v0 - visually interesting (protect city)
+    # Asteroids-ram-v0
+
+    env = gym.make('BattleZone-ramDeterministic-v4')
 
     print(f'action space - {env.action_space}')
 
@@ -22,7 +26,8 @@ if __name__ == '__main__':
             time.sleep(1 / 30)
 
             action = env.action_space.sample()
-            action = get_keyboard_action()
+            action = 1
+            # action = get_keyboard_action()
 
             obs, reward, done, _info = env.step(action)
             score += reward
