@@ -18,13 +18,16 @@ def fit(model, dataloader, haprams):
     for e_id in tqdm(range(hparams.epochs)):
         for i, batch in tqdm(enumerate(dataloader), total=len(dataloader)):
             actions, preconditions, futures = [
-                t.to(hparams.DEVICE) / 255 for t in batch
+                # label smoothing
+                t.to(hparams.DEVICE) / (255 + 5) for t in batch
             ]
 
             loss, info = model.optim_step([[actions, preconditions], futures])
 
             if hparams.should_log:
-                wandb.log({'loss': loss})
+                loss_log_interval = 5
+                if i % loss_log_interval == 0:
+                    wandb.log({'loss': loss})
 
                 if i % haprams.log_interval == 0:
                     num_log_images = 10
@@ -46,12 +49,12 @@ if __name__ == '__main__':
         should_log=True,
         env_name='CubeCrash-v0',
         precondition_size=2,
-        dataset_size=20000,
+        dataset_size=25000,
         frame_size=(32, 32),
-        epochs=3,
+        epochs=500,
         bs=128,
-        log_interval=50,
-        lr=0.001,
+        log_interval=40,
+        lr=0.0003,
         DEVICE='cuda',
     )
 
@@ -86,9 +89,12 @@ if __name__ == '__main__':
         wandb.save('torch_utils.py')
         wandb.save('utils.py')
         wandb.save('run_experiment.py')
-        persisted_model_name = f'.models/{wandb.run.name}.pkl'
+        # persisted_model_name = f'.models/{wandb.run.name}.pkl'
 
     model.make_persisted(persisted_model_name)
+    if model.can_be_preloaded():
+        print('> Preloading model')
+        model.preload_weights()
 
     fit(model, dataloader, hparams)
     model.persist()

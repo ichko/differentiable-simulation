@@ -31,9 +31,8 @@ class PersistedModule(nn.Module):
     def persist(self):
         torch.save(self.state_dict(), self.path)
 
-    def load_persisted_if_exists(self):
-        if os.path.isfile(self.path):
-            self.load_state_dict(torch.load(self.path))
+    def preload_weights(self):
+        self.load_state_dict(torch.load(self.path))
 
     def can_be_preloaded(self):
         return os.path.isfile(self.path)
