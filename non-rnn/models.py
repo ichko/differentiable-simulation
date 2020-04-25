@@ -25,10 +25,10 @@ class ActionEncoder(nn.Module):
 
 
 class PreconditionEncoder(nn.Module):
-    def __init__(self, precondition_size, out_channels):
+    def __init__(self, precondition_channels, out_channels):
         super().__init__()
         self.net = nn.Sequential(
-            tu.conv_block(i=precondition_size, o=32, ks=3, s=1, p=1),
+            tu.conv_block(i=precondition_channels, o=32, ks=3, s=1, p=1),
             tu.conv_block(i=32, o=32, ks=3, s=1, p=1),
             tu.conv_block(i=32, o=out_channels, ks=3, s=1, p=1),
         )
@@ -45,7 +45,14 @@ class ActionPreconditionFusion(nn.Module):
             tu.conv_block(i=in_channels, o=32, ks=3, s=1, p=1),
             tu.conv_block(i=32, o=32, ks=3, s=1, p=1),
             tu.conv_block(i=32, o=32, ks=3, s=1, p=1),
-            tu.conv_block(i=32, o=out_channels, ks=3, s=1, p=1),
+            tu.conv_block(
+                i=32,
+                o=out_channels,
+                ks=3,
+                s=1,
+                p=1,
+                a=nn.Sigmoid(),
+            ),
         )
 
     def forward(self, x):
@@ -56,13 +63,13 @@ class ForwardModel(tu.PersistedModule):
     def __init__(
         self,
         action_output_channels,
-        precondition_size,
+        precondition_channels,
         precondition_out_channels,
     ):
         super().__init__()
         self.ae = ActionEncoder(action_output_channels)
         self.pe = PreconditionEncoder(
-            precondition_size,
+            precondition_channels,
             precondition_out_channels,
         )
         self.apf = ActionPreconditionFusion(
@@ -80,9 +87,21 @@ class ForwardModel(tu.PersistedModule):
 
         return pred_future_frame
 
-    def loss(self, x, y):
+    def optim_init(self, lr):
+        self.optim = torch.optim.Adam(self.parameters(), lr)
+
+    def optim_step(self, batch):
+        x, y = batch
         y_pred = self.forward(x)
-        return F.mse_loss(y_pred, y)
+        loss = F.mse_loss(y_pred, y)
+
+        loss.backward()
+        self.optim.step()
+        self.optim.zero_grad()
+
+        info = dict(y_pred=y_pred)
+
+        return loss, info
 
 
 def sanity_check():
@@ -95,8 +114,8 @@ def sanity_check():
     print(action_activation.shape)
 
     precondition_size = 2
-    preconditions = torch.rand(10, precondition_size, 32, 32)
-    pe = PreconditionEncoder(precondition_size, out_channels)
+    preconditions = torch.rand(10, precondition_size * 3, 32, 32)
+    pe = PreconditionEncoder(precondition_size * 3, out_channels)
     precondition_activation = pe(preconditions)
 
     print(precondition_activation.shape)
@@ -108,11 +127,13 @@ def sanity_check():
 
     fm = ForwardModel(
         action_output_channels=32,
-        precondition_size=2,
+        precondition_channels=precondition_size * 3,
         precondition_out_channels=32,
     )
     future_frame = fm([actions, preconditions])
-    future_frame_loss = fm.loss([actions, preconditions], future_frame)
+    fm.optim_init(lr=0.1)
+    future_frame_loss, _info = fm.optim_step(
+        [[actions, preconditions], future_frame], )
 
     print(future_frame.shape)
     print(future_frame_loss)

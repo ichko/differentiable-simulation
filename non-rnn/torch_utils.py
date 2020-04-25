@@ -10,6 +10,20 @@ def get_activation():
     return nn.LeakyReLU(LEAKY_SLOPE, inplace=True)
 
 
+def cat_channels(t):
+    """
+        Concatenate number of channels in a single tensor
+        Converts tensor with shape:
+            (bs, num_channels, channel_size, h, w)
+        to tensor with shape:
+            (bs, num_channels * channel_size, h, w)
+
+    """
+    shape = t.size()
+    cat_dim_size = shape[1] * shape[2]
+    return t.view(-1, cat_dim_size, *shape[3:])
+
+
 class PersistedModule(nn.Module):
     def make_persisted(self, path):
         self.path = path

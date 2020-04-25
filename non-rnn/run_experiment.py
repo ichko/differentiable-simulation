@@ -1,0 +1,94 @@
+from argparse import Namespace
+
+from data import generate_data
+import models
+import utils
+
+import torch
+from torch.utils import data as torch_data
+from tqdm import tqdm
+import wandb
+import gym
+
+
+def fit(model, dataloader, haprams):
+    model.optim_init(lr=hparams.lr)
+    model = model.to(hparams.DEVICE)
+
+    for e_id in tqdm(range(hparams.epochs)):
+        for i, batch in tqdm(enumerate(dataloader), total=len(dataloader)):
+            actions, preconditions, futures = [
+                t.to(hparams.DEVICE) / 255 for t in batch
+            ]
+
+            loss, info = model.optim_step([[actions, preconditions], futures])
+
+            if hparams.should_log:
+                wandb.log({'loss': loss})
+
+                if i % haprams.log_interval == 0:
+                    num_log_images = 10
+                    y = futures[:num_log_images]
+                    y_pred = info['y_pred'][:num_log_images]
+                    diff = abs(y - y_pred)
+
+                    wandb.log({
+                        'y': [wandb.Image(i) for i in y],
+                        'y_pred': [wandb.Image(i) for i in y_pred],
+                        'diff': [wandb.Image(i) for i in diff]
+                    })
+
+
+if __name__ == '__main__':
+    models.sanity_check()
+
+    hparams = Namespace(
+        should_log=True,
+        env_name='CubeCrash-v0',
+        precondition_size=2,
+        dataset_size=20000,
+        frame_size=(32, 32),
+        epochs=3,
+        bs=128,
+        log_interval=50,
+        lr=0.001,
+        DEVICE='cuda',
+    )
+
+    env = gym.make(hparams.env_name)
+    data = utils.persist(
+        lambda: generate_data(
+            env,
+            lambda _: env.action_space.sample(),
+            dataset_size=hparams.dataset_size,
+            frame_size=hparams.frame_size,
+            precondition_size=hparams.precondition_size,
+        ),
+        f'.data/{hparams.env_name}_{hparams.frame_size}_{hparams.dataset_size}.pkl',
+        override=True,
+    )
+    data = [torch.FloatTensor(t) for t in data]
+    dataset = torch_data.TensorDataset(*data)
+    dataloader = torch_data.DataLoader(dataset, batch_size=hparams.bs)
+
+    model = models.ForwardModel(
+        action_output_channels=32,
+        precondition_channels=hparams.precondition_size * 3,
+        precondition_out_channels=32,
+    )
+    persisted_model_name = '.models/forward_model.pkl'
+
+    if hparams.should_log:
+        wandb.init(project='forward_model')
+        wandb.watch(model)
+        wandb.save('data.py')
+        wandb.save('models.py')
+        wandb.save('torch_utils.py')
+        wandb.save('utils.py')
+        wandb.save('run_experiment.py')
+        persisted_model_name = f'.models/{wandb.run.name}.pkl'
+
+    model.make_persisted(persisted_model_name)
+
+    fit(model, dataloader, hparams)
+    model.persist()

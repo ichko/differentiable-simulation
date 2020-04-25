@@ -1,12 +1,15 @@
 import numpy as np
+import cv2
 
 
 def generate_data(env, agent, dataset_size, frame_size, precondition_size):
+    print('> Generating data...')
+
     total_step = 0
 
     actions = np.zeros((dataset_size, 1), dtype=np.uint8)
     preconditions = np.zeros(
-        (dataset_size, precondition_size, 3, *frame_size[::-1]),
+        (dataset_size, precondition_size * 3, *frame_size[::-1]),
         dtype=np.uint8)
     futures = np.zeros((dataset_size, 3, *frame_size[::-1]), dtype=np.uint8)
 
@@ -39,9 +42,12 @@ def generate_data(env, agent, dataset_size, frame_size, precondition_size):
                 last_action = action
 
                 actions[total_step] = last_action
-                preconditions[total_step] = precondition
+                preconditions[total_step] = precondition.reshape(
+                    precondition_size * 3,
+                    *frame_size[::-1],
+                )
                 futures[total_step] = future
 
                 total_step += 1
                 if total_step >= dataset_size:
-                    return (actions, preconditions), futures
+                    return actions, preconditions, futures
