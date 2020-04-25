@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 import torch_utils as tu
 
@@ -51,19 +52,52 @@ class ActionPreconditionFusion(nn.Module):
         return self.net(x)
 
 
-if __name__ == '__main__':
+class ForwardModel(tu.PersistedModule):
+    def __init__(
+        self,
+        action_output_channels,
+        precondition_size,
+        precondition_out_channels,
+    ):
+        super().__init__()
+        self.ae = ActionEncoder(action_output_channels)
+        self.pe = PreconditionEncoder(
+            precondition_size,
+            precondition_out_channels,
+        )
+        self.apf = ActionPreconditionFusion(
+            action_output_channels + precondition_out_channels,
+            out_channels=3,  # RGB
+        )
+
+    def forward(self, x):
+        actions, preconditions = x
+
+        action_activation = self.ae(actions)
+        precondition_activation = self.pe(preconditions)
+        pred_future_frame = self.apf(
+            [action_activation, precondition_activation])
+
+        return pred_future_frame
+
+    def loss(self, x, y):
+        y_pred = self.forward(x)
+        return F.mse_loss(y_pred, y)
+
+
+def sanity_check():
     out_channels = 32
 
-    action = torch.rand(10, 1)
+    actions = torch.rand(10, 1)
     ae = ActionEncoder(out_channels)
-    action_activation = ae(action)
+    action_activation = ae(actions)
 
     print(action_activation.shape)
 
     precondition_size = 2
-    precondition = torch.rand(10, precondition_size, 32, 32)
+    preconditions = torch.rand(10, precondition_size, 32, 32)
     pe = PreconditionEncoder(precondition_size, out_channels)
-    precondition_activation = pe(precondition)
+    precondition_activation = pe(preconditions)
 
     print(precondition_activation.shape)
 
@@ -71,3 +105,19 @@ if __name__ == '__main__':
     fusion_activation = apf([action_activation, precondition_activation])
 
     print(fusion_activation.shape)
+
+    fm = ForwardModel(
+        action_output_channels=32,
+        precondition_size=2,
+        precondition_out_channels=32,
+    )
+    future_frame = fm([actions, preconditions])
+    future_frame_loss = fm.loss([actions, preconditions], future_frame)
+
+    print(future_frame.shape)
+    print(future_frame_loss)
+    print('--- SANITY CHECK END --- ')
+
+
+if __name__ == '__main__':
+    sanity_check()
