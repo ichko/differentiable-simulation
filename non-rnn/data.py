@@ -10,7 +10,8 @@ def generate_data(env, agent, dataset_size, frame_size, precondition_size):
     actions = np.zeros((dataset_size, 1), dtype=np.uint8)
     preconditions = np.zeros(
         (dataset_size, precondition_size * 3, *frame_size[::-1]),
-        dtype=np.uint8)
+        dtype=np.uint8,
+    )
     futures = np.zeros((dataset_size, 3, *frame_size[::-1]), dtype=np.uint8)
 
     while True:

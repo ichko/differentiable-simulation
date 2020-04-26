@@ -10,6 +10,12 @@ def get_activation():
     return nn.LeakyReLU(LEAKY_SLOPE, inplace=True)
 
 
+def one_hot(t):
+    hot = torch.zeros((t.size(0), t.max() + 1))
+    hot[torch.arange(t.size(0)), t] = 1
+    return hot
+
+
 def cat_channels(t):
     """
         Concatenate number of channels in a single tensor
@@ -56,15 +62,16 @@ def resize(t, size):
 
 
 def conv_block(i, o, ks, s, p, a=get_activation(), d=1):
-    return nn.Sequential(
+    block = [
         nn.Conv2d(i, o, kernel_size=ks, stride=s, padding=p, dilation=d),
         nn.BatchNorm2d(o),
-        a,
-    )
+    ]
+
+    return nn.Sequential(*(block if a is None else [*block, a]))
 
 
 def deconv_block(i, o, ks, s, p, a=get_activation(), d=1):
-    return nn.Sequential(
+    block = [
         nn.ConvTranspose2d(
             i,
             o,
@@ -74,5 +81,6 @@ def deconv_block(i, o, ks, s, p, a=get_activation(), d=1):
             dilation=d,
         ),
         nn.BatchNorm2d(o),
-        a,
-    )
+    ]
+
+    return nn.Sequential(*(block if a is None else [*block, a]))
