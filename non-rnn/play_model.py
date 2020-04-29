@@ -3,6 +3,7 @@ import time
 import models
 
 import numpy as np
+import matplotlib.pyplot as plt
 import gym
 import cv2
 
@@ -16,6 +17,7 @@ def render(env):
 
 
 def play():
+
     env = gym.make('CubeCrash-v0')
     env.reset()
 
@@ -28,13 +30,15 @@ def play():
     preconditions = np.transpose(preconditions, (2, 0, 1))
 
     model = models.ForwardGym(
+        num_actions=3,
         precondition=preconditions,
         action_output_channels=32,
         precondition_channels=2 * 3,
-        precondition_out_channels=32,
+        precondition_out_channels=128,
     )
-    model.make_persisted('.models/forward_model.pkl')
+    model.make_persisted('.models/CubeCrash-v0.pkl')
     model.preload_weights()
+    model.eval()
     model.reset()
 
     done = False
@@ -45,11 +49,12 @@ def play():
         _, _, done, _ = env.step(action)
         pred_frame, _, _, _ = model.step(action)
         pred_frame = np.transpose(pred_frame, (1, 2, 0))
-
         frame = render(env)
 
+        diff = abs(pred_frame.astype(np.float32) - frame).astype(np.uint8)
+
         screen = np.concatenate(
-            [frame, pred_frame, abs(frame - pred_frame)], axis=1)
+            [frame, pred_frame, diff], axis=1)
 
         cv2.imshow(win_name, screen)
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -57,5 +62,8 @@ def play():
 
 
 if __name__ == '__main__':
+    cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(win_name, 900, 300)
+
     while True:
         play()
