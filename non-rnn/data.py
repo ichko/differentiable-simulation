@@ -51,4 +51,5 @@ def generate_data(env, agent, dataset_size, frame_size, precondition_size):
 
                 total_step += 1
                 if total_step >= dataset_size:
-                    return actions, preconditions, futures
+                    rnd_idx = np.random.permutation(dataset_size)
+                    return actions[rnd_idx], preconditions[rnd_idx], futures[rnd_idx]
