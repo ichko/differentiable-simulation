@@ -12,9 +12,10 @@ import gym
 import matplotlib.pyplot as plt
 
 
-def fit(model, dataloader, haprams):
+def fit(model, data, haprams):
     model.optim_init(lr=hparams.lr)
     model = model.to(hparams.DEVICE)
+    dataloader = model.to_dataloader(data, hparams.bs)
 
     for e_id in tqdm(range(hparams.epochs)):
         for i, batch in tqdm(enumerate(dataloader), total=len(dataloader)):
@@ -30,6 +31,7 @@ def fit(model, dataloader, haprams):
                     wandb.log({
                         'loss': loss,
                         'epoch': e_id,
+                        'lr_scheduler': model.scheduler.get_lr()[0],
                     })
 
                 if i % haprams.log_interval == 0:
@@ -46,6 +48,9 @@ def fit(model, dataloader, haprams):
 
                     model.persist()
 
+        # End of epoch
+        model.scheduler.step()
+
 
 if __name__ == '__main__':
     models.sanity_check()
@@ -59,11 +64,13 @@ if __name__ == '__main__':
         epochs=500,
         bs=128,
         log_interval=40,
-        lr=0.0003,
+        lr=0.001,
         DEVICE='cuda',
     )
 
     env = gym.make(hparams.env_name)
+    num_actions = env.action_space.n
+
     data = utils.persist(
         lambda: generate_data(
             env,
@@ -73,13 +80,14 @@ if __name__ == '__main__':
             precondition_size=hparams.precondition_size,
         ),
         f'.data/{hparams.env_name}_{hparams.frame_size}_{hparams.dataset_size}.pkl',
-        override=True,
+        override=False,
     )
 
     model = models.ForwardModel(
+        num_actions=num_actions,
         action_output_channels=32,
         precondition_channels=hparams.precondition_size * 3,
-        precondition_out_channels=32,
+        precondition_out_channels=128,
     )
     persisted_model_name = f'.models/{hparams.env_name}.pkl'
 
@@ -94,9 +102,15 @@ if __name__ == '__main__':
         # persisted_model_name = f'.models/{wandb.run.name}.pkl'
 
     model.make_persisted(persisted_model_name)
-    # if model.can_be_preloaded():
-    #     print('> Preloading model')
-    #     model.preload_weights()
+    if model.can_be_preloaded():
+        print('> Preloading model')
+        try:
+            model.preload_weights()
+        except Exception as e:
+            print(f'ERROR: Could not preload weights [{repr(e)}]')
 
-    fit(model, dataloader, hparams)
+    number_of_parameters = model.count_parameters()
+    print(f'Number of trainable parameters: {number_of_parameters}')
+
+    fit(model, data, hparams)
     model.persist()

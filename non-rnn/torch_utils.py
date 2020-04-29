@@ -10,8 +10,10 @@ def get_activation():
     return nn.LeakyReLU(LEAKY_SLOPE, inplace=True)
 
 
-def one_hot(t):
-    hot = torch.zeros((t.size(0), t.max() + 1))
+def one_hot(t, one_hot_size=None):
+    one_hot_size = t.max() + 1 if one_hot_size is None else one_hot_size
+
+    hot = torch.zeros((t.size(0), one_hot_size))
     hot[torch.arange(t.size(0)), t] = 1
     return hot
 
@@ -30,7 +32,10 @@ def cat_channels(t):
     return t.view(-1, cat_dim_size, *shape[3:])
 
 
-class PersistedModule(nn.Module):
+class BaseModule(nn.Module):
+    def count_parameters(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
     def make_persisted(self, path):
         self.path = path
 
@@ -71,16 +76,13 @@ def conv_block(i, o, ks, s, p, a=get_activation(), d=1):
 
 
 def deconv_block(i, o, ks, s, p, a=get_activation(), d=1):
-    block = [
-        nn.ConvTranspose2d(
-            i,
-            o,
-            kernel_size=ks,
-            stride=s,
-            padding=p,
-            dilation=d,
-        ),
-        nn.BatchNorm2d(o),
-    ]
+    conv = nn.ConvTranspose2d(
+        i,
+        o,
+        kernel_size=ks,
+        stride=s,
+        padding=p,
+        dilation=d,
+    )
 
-    return nn.Sequential(*(block if a is None else [*block, a]))
+    return conv if a is None else nn.Sequential(*[conv, nn.BatchNorm2d(o), a])
