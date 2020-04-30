@@ -51,6 +51,15 @@ def fit(model, data, haprams):
         # End of epoch
         model.scheduler.step()
 
+        # Log videos
+        vid_paths = []
+        for i in range(2):
+            vid_path = f'./.videos/vid_epoch_{e_id:04}_{hparams.env_name}_{i}.webm'
+            utils.produce_video(vid_path, model, env, haprams)
+            vid_paths.append(vid_path)
+
+        wandb.log({'example video': [wandb.Video(v) for v in vid_paths]})
+
 
 if __name__ == '__main__':
     models.sanity_check()
@@ -59,7 +68,7 @@ if __name__ == '__main__':
         should_log=True,
         env_name='CubeCrash-v0',
         precondition_size=2,
-        dataset_size=25000,
+        dataset_size=35000,
         frame_size=(32, 32),
         epochs=500,
         bs=128,
@@ -83,7 +92,7 @@ if __name__ == '__main__':
         override=False,
     )
 
-    model = models.ForwardModel(
+    model = models.ForwardGym(
         num_actions=num_actions,
         action_output_channels=32,
         precondition_channels=hparams.precondition_size * 3,
