@@ -43,13 +43,15 @@ class ActionPreconditionFusion(tu.BaseModule):
         super().__init__()
         self.net = nn.Sequential(
             tu.lam(lambda x: torch.cat(x, dim=1)),
-            tu.dense(in_channels, 128, tu.get_activation()),
-            tu.dense(128, 512, tu.get_activation()),
+            tu.dense(in_channels, 512, tu.get_activation()),
+            tu.dense(512, 512, tu.get_activation()),
             tu.lam(lambda x: x.reshape(-1, 8, 8, 8)),
             tu.deconv_block(i=8, o=32, ks=5, s=1, p=2, d=1),
+            tu.deconv_block(i=32, o=32, ks=5, s=1, p=2, d=1),
+            tu.deconv_block(i=32, o=32, ks=5, s=1, p=0, d=1),
             tu.deconv_block(i=32, o=32, ks=5, s=2, p=2, d=2),
-            tu.deconv_block(i=32, o=32, ks=5, s=1, p=1, d=3),
-            tu.deconv_block(i=32, o=32, ks=3, s=1, p=1, d=2),
+            tu.deconv_block(i=32, o=32, ks=3, s=1, p=0, d=1),
+            tu.deconv_block(i=32, o=32, ks=3, s=1, p=0, d=1),
             tu.conv_block(
                 i=32,
                 o=out_channels,
@@ -96,11 +98,11 @@ class ForwardModel(tu.BaseModule):
     def optim_init(self, lr):
         self.optim = torch.optim.Adam(self.parameters(), 1)
 
-        def lr_lambda(epoch): return lr / (epoch // 50 + 1)
+        def lr_lambda(epoch):
+            return lr / (epoch // 20 + 1)
 
-        self.scheduler = torch.optim.lr_scheduler.LambdaLR(
-            self.optim, lr_lambda=lr_lambda
-        )
+        self.scheduler = torch.optim.lr_scheduler.LambdaLR(self.optim,
+                                                           lr_lambda=lr_lambda)
 
     def preprocess_input(self, x, one_hot_size=None):
         actions, preconditions = x
@@ -139,15 +141,11 @@ class ForwardModel(tu.BaseModule):
 
 
 class ForwardGym(ForwardModel):
-    def __init__(self, precondition, num_actions, *args, **kwargs):
-        super().__init__(num_actions, *args, **kwargs)
+    def reset(self, precondition, num_actions):
         self.last_action = None
         self.num_actions = num_actions
         self.first_precondition = precondition
         self.last_precondition = precondition
-
-    def reset(self):
-        self.last_precondition = self.first_precondition
 
     def step(self, action):
         self.last_action = action
@@ -167,10 +165,11 @@ class ForwardGym(ForwardModel):
         if mode != 'rgb_array':
             raise NotImplementedError(f'mode "{mode}" is not supported')
 
-        print(self.last_precondition.dtype)
         x = self.preprocess_input(
-            [torch.LongTensor([self.last_action]),
-             torch.FloatTensor([self.last_precondition])],
+            [
+                torch.LongTensor([self.last_action]),
+                torch.FloatTensor([self.last_precondition])
+            ],
             self.num_actions,
         )
 
@@ -189,12 +188,12 @@ def sanity_check():
 
     precondition_size = 2
     preconditions = torch.rand(10, precondition_size * 3, 32, 32)
-    pe = PreconditionEncoder(precondition_size * 3, out_channels=128)
+    pe = PreconditionEncoder(precondition_size * 3, out_channels=512)
     precondition_activation = pe(preconditions)
 
     print(precondition_activation.shape)
 
-    apf = ActionPreconditionFusion(in_channels=128 + 32, out_channels=32)
+    apf = ActionPreconditionFusion(in_channels=512 + 32, out_channels=64)
     fusion_activation = apf([action_activation, precondition_activation])
 
     print(fusion_activation.shape)
@@ -203,7 +202,7 @@ def sanity_check():
         num_actions=num_actions,
         action_output_channels=32,
         precondition_channels=precondition_size * 3,
-        precondition_out_channels=128,
+        precondition_out_channels=512,
     )
 
     future_frame = fm([actions, preconditions])
