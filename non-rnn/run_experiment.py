@@ -1,7 +1,8 @@
 from argparse import Namespace
 
+from config import hparams
 from data import generate_data
-import models
+import models.frame_transform as models
 import utils
 
 import torch
@@ -10,6 +11,33 @@ import wandb
 import gym
 
 import matplotlib.pyplot as plt
+
+
+def get_model():
+    model = models.ForwardGym(
+        num_actions=ENV.action_space.n,
+        action_output_channels=32,
+        precondition_channels=hparams.precondition_size * 3,
+        precondition_out_channels=128,
+    )
+    persisted_model_name = f'.models/{hparams.env_name}.pkl'
+
+    model.make_persisted(persisted_model_name)
+    if model.can_be_preloaded():
+        print('> Preloading model')
+        try:
+            model.preload_weights()
+        except Exception as e:
+            print(f'ERROR: Could not preload weights [{repr(e)}]')
+
+    number_of_parameters = model.count_parameters()
+    print(f'Number of trainable parameters: {number_of_parameters}')
+
+    return model
+
+
+ENV = gym.make(hparams.env_name)
+MODEL = get_model()
 
 
 def fit(model, data, haprams):
@@ -55,7 +83,7 @@ def fit(model, data, haprams):
         vid_paths = []
         for i in range(2):
             vid_path = f'./.videos/vid_epoch_{e_id:04}_{hparams.env_name}_{i}.webm'
-            utils.produce_video(vid_path, model, env, haprams)
+            utils.produce_video(vid_path, model, ENV, haprams)
             vid_paths.append(vid_path)
 
         wandb.log({'example video': [wandb.Video(v) for v in vid_paths]})
@@ -64,26 +92,10 @@ def fit(model, data, haprams):
 if __name__ == '__main__':
     models.sanity_check()
 
-    hparams = Namespace(
-        should_log=True,
-        env_name='CubeCrash-v0',
-        precondition_size=2,
-        dataset_size=35000,
-        frame_size=(32, 32),
-        epochs=500,
-        bs=128,
-        log_interval=40,
-        lr=0.001,
-        DEVICE='cuda',
-    )
-
-    env = gym.make(hparams.env_name)
-    num_actions = env.action_space.n
-
     data = utils.persist(
         lambda: generate_data(
-            env,
-            lambda _: env.action_space.sample(),
+            ENV,
+            lambda _: ENV.action_space.sample(),
             dataset_size=hparams.dataset_size,
             frame_size=hparams.frame_size,
             precondition_size=hparams.precondition_size,
@@ -92,34 +104,13 @@ if __name__ == '__main__':
         override=False,
     )
 
-    model = models.ForwardGym(
-        num_actions=num_actions,
-        action_output_channels=32,
-        precondition_channels=hparams.precondition_size * 3,
-        precondition_out_channels=128,
-    )
-    persisted_model_name = f'.models/{hparams.env_name}.pkl'
-
     if hparams.should_log:
         wandb.init(project='forward_model', config=hparams)
-        wandb.watch(model)
+        wandb.watch(MODEL)
         wandb.save('data.py')
-        wandb.save('models.py')
-        wandb.save('torch_utils.py')
+        wandb.save('models/*')
         wandb.save('utils.py')
         wandb.save('run_experiment.py')
-        # persisted_model_name = f'.models/{wandb.run.name}.pkl'
 
-    model.make_persisted(persisted_model_name)
-    if model.can_be_preloaded():
-        print('> Preloading model')
-        try:
-            model.preload_weights()
-        except Exception as e:
-            print(f'ERROR: Could not preload weights [{repr(e)}]')
-
-    number_of_parameters = model.count_parameters()
-    print(f'Number of trainable parameters: {number_of_parameters}')
-
-    fit(model, data, hparams)
-    model.persist()
+    fit(MODEL, data, hparams)
+    MODEL.persist()

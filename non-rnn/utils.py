@@ -4,6 +4,7 @@ import numpy as np
 import cv2
 from argparse import Namespace
 import torch
+from config import hparams
 
 
 def persist(func, path, override=False):
@@ -19,7 +20,7 @@ def persist(func, path, override=False):
 
 
 def produce_video(vid_path, model, env, hparams):
-    rollout = play_model(env, model, hparams, num_episodes=5)
+    rollout = play_model(env, model, num_episodes=5)
     frames_to_video(vid_path, rollout, fps=10, frame_size=None)
 
 
@@ -48,7 +49,7 @@ def render_env(env, hparams):
     return frame
 
 
-def play_model(env, model, hparams=Namespace(frame_size=(32, 32)), num_episodes=5):
+def play_model(env, model, num_episodes=5):
     model = model.to('cpu')
 
     with torch.no_grad():

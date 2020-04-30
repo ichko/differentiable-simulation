@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils import data as torch_data
 
-import torch_utils as tu
+from models import torch_utils as tu
 
 
 class ActionEncoder(tu.BaseModule):
@@ -13,6 +13,7 @@ class ActionEncoder(tu.BaseModule):
         super().__init__()
         self.net = nn.Sequential(
             tu.dense(num_actions, 32, tu.get_activation()),
+            tu.dense(32, 32, tu.get_activation()),
             tu.dense(32, 32, tu.get_activation()),
             tu.dense(32, out_channels, a=None),
         )
@@ -31,7 +32,7 @@ class PreconditionEncoder(tu.BaseModule):
             tu.conv_block(i=64, o=32, ks=3, s=2, p=1),
             tu.conv_block(i=32, o=32, ks=3, s=2, p=1),
             nn.Flatten(),
-            tu.dense(128, out_channels, a=None),
+            tu.dense(512, out_channels, a=None),
         )
 
     def forward(self, x):
@@ -44,13 +45,12 @@ class ActionPreconditionFusion(tu.BaseModule):
         self.net = nn.Sequential(
             tu.lam(lambda x: torch.cat(x, dim=1)),
             tu.dense(in_channels, 512, tu.get_activation()),
-            tu.dense(512, 512, tu.get_activation()),
             tu.lam(lambda x: x.reshape(-1, 8, 8, 8)),
             tu.deconv_block(i=8, o=32, ks=5, s=1, p=2, d=1),
             tu.deconv_block(i=32, o=32, ks=5, s=1, p=2, d=1),
-            tu.deconv_block(i=32, o=32, ks=5, s=1, p=0, d=1),
-            tu.deconv_block(i=32, o=32, ks=5, s=2, p=2, d=2),
-            tu.deconv_block(i=32, o=32, ks=3, s=1, p=0, d=1),
+            tu.deconv_block(i=32, o=64, ks=5, s=2, p=0, d=2),
+            tu.deconv_block(i=64, o=32, ks=9, s=2, p=2, d=2),
+            tu.deconv_block(i=32, o=32, ks=9, s=1, p=2, d=1),
             tu.deconv_block(i=32, o=32, ks=3, s=1, p=0, d=1),
             tu.conv_block(
                 i=32,
@@ -101,8 +101,10 @@ class ForwardModel(tu.BaseModule):
         def lr_lambda(epoch):
             return lr / (epoch // 20 + 1)
 
-        self.scheduler = torch.optim.lr_scheduler.LambdaLR(self.optim,
-                                                           lr_lambda=lr_lambda)
+        self.scheduler = torch.optim.lr_scheduler.LambdaLR(
+            self.optim,
+            lr_lambda=lr_lambda,
+        )
 
     def preprocess_input(self, x, one_hot_size=None):
         actions, preconditions = x
@@ -187,7 +189,7 @@ def sanity_check():
     print(action_activation.shape)
 
     precondition_size = 2
-    preconditions = torch.rand(10, precondition_size * 3, 32, 32)
+    preconditions = torch.rand(10, precondition_size * 3, 64, 64)
     pe = PreconditionEncoder(precondition_size * 3, out_channels=512)
     precondition_activation = pe(preconditions)
 
@@ -217,10 +219,10 @@ def sanity_check():
 
     print(f'''
         MODELS SIZES:
-            - ACTION ENCODER       {ae.count_parameters()}
-            - PRECONDITION ENCODER {pe.count_parameters()}
-            - FUSION               {apf.count_parameters()}
-            - WHOLE MODEL          {fm.count_parameters()}
+            - ACTION ENCODER       {ae.count_parameters():09,}
+            - PRECONDITION ENCODER {pe.count_parameters():09,}
+            - FUSION               {apf.count_parameters():09,}
+            - WHOLE MODEL          {fm.count_parameters():09,}
     ''')
 
     print('--- SANITY CHECK END --- ')
