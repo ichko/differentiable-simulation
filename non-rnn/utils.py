@@ -49,7 +49,7 @@ def render_env(env, hparams):
     return frame
 
 
-def play_model(env, model, num_episodes=5):
+def play_model(env, model, agent=None, num_episodes=5):
     model = model.to('cpu')
 
     with torch.no_grad():
@@ -57,27 +57,27 @@ def play_model(env, model, num_episodes=5):
             def get_action():
                 return i if i < env.action_space.n else env.action_space.sample()
 
+            agent = get_action if agent is None else agent
+
             env.reset()
 
             first = render_env(env, hparams)
 
-            action = get_action()
+            action = agent()
 
-            env.step(action)
-            second = render_env(env, hparams)
+            # env.step(action)
+            # second = render_env(env, hparams)
 
-            preconditions = np.concatenate([first, second], axis=-1)
+            # preconditions = np.concatenate([first, second], axis=-1)
+            preconditions = np.concatenate([first], axis=-1)
             preconditions = np.transpose(preconditions, (2, 0, 1))
 
             # model.eval()
-            model.reset(
-                num_actions=3,
-                precondition=preconditions,
-            )
+            model.reset(precondition=preconditions)
 
             done = False
             while not done:
-                action = get_action()
+                action = agent()
                 _, _, done, _ = env.step(action)
                 pred_frame, _, _, _ = model.step(action)
                 pred_frame = np.transpose(pred_frame, (1, 2, 0))

@@ -6,9 +6,9 @@ if __name__ == '__main__':
     # BattleZone-ram-v0 - 3D tank
     # Atlantis-ram-v0 - visually interesting (protect city)
     # Asteroids-ram-v0
-    # Freeway-v0 - frogger like - looks promising for mood
+    # Freeway-v0 - frogger like - looks promising
 
-    env = gym.make('Gopher-ram-v4')
+    env = gym.make('FlappyBird-v0')
 
     print(f'action space - {env.action_space}')
 

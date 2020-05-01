@@ -13,9 +13,7 @@ class ActionEncoder(tu.BaseModule):
         super().__init__()
         self.net = nn.Sequential(
             tu.dense(num_actions, 32, tu.get_activation()),
-            tu.dense(32, 32, tu.get_activation()),
-            tu.dense(32, 32, tu.get_activation()),
-            tu.dense(32, out_channels, a=None),
+            tu.dense(32, out_channels, a=nn.Tanh()),
         )
 
     def forward(self, x):
@@ -28,11 +26,9 @@ class PreconditionEncoder(tu.BaseModule):
         self.net = nn.Sequential(
             tu.conv_block(i=precondition_channels, o=32, ks=5, s=2, p=2),
             tu.conv_block(i=32, o=64, ks=5, s=2, p=2),
-            tu.conv_block(i=64, o=64, ks=5, s=1, p=2),
-            tu.conv_block(i=64, o=32, ks=3, s=2, p=1),
-            tu.conv_block(i=32, o=32, ks=3, s=2, p=1),
-            nn.Flatten(),
-            tu.dense(512, out_channels, a=None),
+            tu.conv_block(i=64, o=64, ks=5, s=2, p=2),
+            tu.conv_block(i=64, o=32, ks=3, s=1, p=1),
+            tu.conv_block(i=32, o=8, ks=3, s=1, p=1, a=nn.Tanh()),
         )
 
     def forward(self, x):
@@ -40,30 +36,48 @@ class PreconditionEncoder(tu.BaseModule):
 
 
 class ActionPreconditionFusion(tu.BaseModule):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels):
         super().__init__()
-        self.net = nn.Sequential(
-            tu.lam(lambda x: torch.cat(x, dim=1)),
-            tu.dense(in_channels, 512, tu.get_activation()),
-            tu.lam(lambda x: x.reshape(-1, 8, 8, 8)),
-            tu.deconv_block(i=8, o=32, ks=5, s=1, p=2, d=1),
-            tu.deconv_block(i=32, o=32, ks=5, s=1, p=2, d=1),
-            tu.deconv_block(i=32, o=64, ks=5, s=2, p=0, d=2),
-            tu.deconv_block(i=64, o=32, ks=9, s=2, p=2, d=2),
-            tu.deconv_block(i=32, o=32, ks=9, s=1, p=2, d=1),
-            tu.deconv_block(i=32, o=32, ks=3, s=1, p=0, d=1),
-            tu.conv_block(
-                i=32,
-                o=out_channels,
-                ks=2,
-                s=1,
-                p=1,
-                a=nn.Sigmoid(),
-            ),
+
+        def block():
+            return nn.Sequential(
+                tu.dense(in_channels, 512, tu.get_activation()),
+                tu.dense(512, 512, tu.get_activation()),
+                tu.lam(lambda x: x.reshape(-1, 8, 8, 8)),
+                tu.deconv_block(i=8, o=32, ks=5, s=1, p=2, d=1),
+                tu.deconv_block(i=32, o=32, ks=5, s=1, p=1, d=1),
+                tu.deconv_block(i=32, o=8, ks=6, s=1, p=2, d=2, a=nn.Tanh()),
+            )
+
+        self.update_gate = block()
+        self.update_state = block()
+
+        self.upscale_state = nn.Sequential(
+            tu.deconv_block(i=8, o=64, ks=5, s=1, p=2, d=2),
+            tu.deconv_block(i=64, o=32, ks=3, s=1, p=1, d=2),
+            tu.deconv_block(i=32, o=8, ks=3, s=1, p=0, d=1, a=nn.Tanh()),
+        )
+
+        self.to_rgb = nn.Sequential(
+            tu.deconv_block(i=8, o=32, ks=5, s=1, p=1, d=2),
+            tu.deconv_block(i=32, o=32, ks=5, s=1, p=0, d=2),
+            tu.deconv_block(i=32, o=32, ks=3, s=2, p=0, d=2),
+            tu.deconv_block(i=32, o=3, ks=2, s=1, p=0, d=1, a=nn.Sigmoid()),
         )
 
     def forward(self, x):
-        return self.net(x)
+        actions, preconditions = x
+        flat_preconditions = torch.flatten(preconditions, start_dim=1)
+        cat_input = torch.cat([actions, flat_preconditions], dim=1)
+
+        update_gate = F.sigmoid(self.update_gate(cat_input))
+        update_state = self.update_state(cat_input)
+
+        upscaled_state = self.upscale_state(preconditions)
+        out = update_gate * upscaled_state + (1 - update_gate) * update_state
+        out = self.to_rgb(out)
+
+        return out
 
 
 class ForwardModel(tu.BaseModule):
@@ -75,6 +89,8 @@ class ForwardModel(tu.BaseModule):
         precondition_out_channels,
     ):
         super().__init__()
+        self.num_actions = num_actions
+
         self.ae = ActionEncoder(num_actions, action_output_channels)
         self.pe = PreconditionEncoder(
             precondition_channels,
@@ -82,7 +98,6 @@ class ForwardModel(tu.BaseModule):
         )
         self.apf = ActionPreconditionFusion(
             action_output_channels + precondition_out_channels,
-            out_channels=3,  # RGB
         )
 
     def forward(self, x):
@@ -109,12 +124,12 @@ class ForwardModel(tu.BaseModule):
     def preprocess_input(self, x, one_hot_size=None):
         actions, preconditions = x
         hot_actions = tu.one_hot(actions, one_hot_size).to(actions.device)
-        preconditions = preconditions / 255
+        preconditions = preconditions / (255 + 0)
         return hot_actions, preconditions
 
     def preprocess_targets(self, y):
         # label smoothing
-        return y / 255
+        return y / (255 + 0)
 
     def to_dataloader(self, data, bs):
         actions, preconditions, futures = data
@@ -143,9 +158,8 @@ class ForwardModel(tu.BaseModule):
 
 
 class ForwardGym(ForwardModel):
-    def reset(self, precondition, num_actions):
+    def reset(self, precondition):
         self.last_action = None
-        self.num_actions = num_actions
         self.first_precondition = precondition
         self.last_precondition = precondition
 
@@ -155,7 +169,7 @@ class ForwardGym(ForwardModel):
         pred_frame = self.render('rgb_array')
         self.last_precondition = np.roll(
             self.last_precondition,
-            shift=-1,
+            shift=1,
             axis=0,
         )
         self.last_precondition[-3:] = pred_frame
@@ -176,6 +190,7 @@ class ForwardGym(ForwardModel):
         )
 
         frame = self(x)[0].detach().cpu().numpy()
+        # should not label smooth
         return (frame * 255).astype(np.uint8)
 
 
@@ -188,14 +203,14 @@ def sanity_check():
 
     print(action_activation.shape)
 
-    precondition_size = 2
+    precondition_size = 1
     preconditions = torch.rand(10, precondition_size * 3, 64, 64)
     pe = PreconditionEncoder(precondition_size * 3, out_channels=512)
     precondition_activation = pe(preconditions)
 
     print(precondition_activation.shape)
 
-    apf = ActionPreconditionFusion(in_channels=512 + 32, out_channels=64)
+    apf = ActionPreconditionFusion(in_channels=512 + 32)
     fusion_activation = apf([action_activation, precondition_activation])
 
     print(fusion_activation.shape)

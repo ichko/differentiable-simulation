@@ -1,4 +1,5 @@
 from argparse import Namespace
+import os
 
 from config import hparams
 from data import generate_data
@@ -18,7 +19,7 @@ def get_model():
         num_actions=ENV.action_space.n,
         action_output_channels=32,
         precondition_channels=hparams.precondition_size * 3,
-        precondition_out_channels=128,
+        precondition_out_channels=512,
     )
     persisted_model_name = f'.models/{hparams.env_name}.pkl'
 
@@ -90,8 +91,6 @@ def fit(model, data, haprams):
 
 
 if __name__ == '__main__':
-    models.sanity_check()
-
     data = utils.persist(
         lambda: generate_data(
             ENV,
@@ -100,7 +99,7 @@ if __name__ == '__main__':
             frame_size=hparams.frame_size,
             precondition_size=hparams.precondition_size,
         ),
-        f'.data/{hparams.env_name}_{hparams.frame_size}_{hparams.dataset_size}.pkl',
+        f'.data/{hparams.env_name}_{hparams.frame_size}_{hparams.dataset_size}_{hparams.precondition_size}.pkl',
         override=False,
     )
 
@@ -108,9 +107,12 @@ if __name__ == '__main__':
         wandb.init(project='forward_model', config=hparams)
         wandb.watch(MODEL)
         wandb.save('data.py')
-        wandb.save('models/*')
         wandb.save('utils.py')
         wandb.save('run_experiment.py')
+        [wandb.save(f'./models/{f}')
+         for f in os.listdir('./models') if not f.startswith('__')]
+
+    models.sanity_check()
 
     fit(MODEL, data, hparams)
     MODEL.persist()
