@@ -6,10 +6,10 @@ import sneks
 
 hparams = Namespace(
     should_log=True,
-    env_name='CubeCrash-v0',
+    env_name='snek-rgb-16-v1',
     precondition_size=1,
-    dataset_size=25000,
-    frame_size=(64, 64),
+    dataset_size=50000,
+    frame_size=(32, 32),
     epochs=500,
     bs=64,
     log_interval=40,
