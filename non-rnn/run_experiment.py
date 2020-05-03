@@ -17,9 +17,8 @@ import matplotlib.pyplot as plt
 def get_model():
     model = models.ForwardGym(
         num_actions=ENV.action_space.n,
-        action_output_channels=32,
         precondition_channels=hparams.precondition_size * 3,
-        precondition_out_channels=512,
+        apf_in_size=1024 + 32,
     )
     persisted_model_name = f'.models/{hparams.env_name}.pkl'
 

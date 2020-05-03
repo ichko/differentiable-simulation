@@ -9,7 +9,7 @@ from models import torch_utils as tu
 
 
 class ActionEncoder(tu.BaseModule):
-    def __init__(self, num_actions, out_channels):
+    def __init__(self, num_actions):
         super().__init__()
         self.net = nn.Sequential(
             tu.dense(num_actions, 32, a=nn.Tanh()),
@@ -20,14 +20,14 @@ class ActionEncoder(tu.BaseModule):
 
 
 class PreconditionEncoder(tu.BaseModule):
-    def __init__(self, precondition_channels, out_channels):
+    def __init__(self, precondition_channels):
         super().__init__()
         self.net = nn.Sequential(
-            tu.conv_block(i=precondition_channels, o=32, ks=5, s=2, p=2),
-            tu.conv_block(i=32, o=64, ks=5, s=2, p=2),
-            tu.conv_block(i=64, o=64, ks=5, s=1, p=2),
-            tu.conv_block(i=64, o=32, ks=3, s=1, p=1),
-            tu.conv_block(i=32, o=8, ks=3, s=1, p=1, a=nn.Tanh()),
+            tu.conv_block(i=precondition_channels, o=32, ks=3, s=1, p=0),
+            tu.conv_block(i=32, o=32, ks=3, s=1, p=0),
+            tu.conv_block(i=32, o=32, ks=5, s=1, p=2),
+            tu.conv_block(i=32, o=32, ks=7, s=2, p=3),
+            tu.conv_block(i=32, o=4, ks=8, s=2, p=4, a=None),
         )
 
     def forward(self, x):
@@ -35,34 +35,28 @@ class PreconditionEncoder(tu.BaseModule):
 
 
 class ActionPreconditionFusion(tu.BaseModule):
-    def __init__(self, in_channels):
+    def __init__(self, input_size):
         super().__init__()
 
-        def block():
+        def block(a):
             return nn.Sequential(
-                tu.dense(in_channels, 256, tu.get_activation()),
+                tu.dense(input_size, 256, tu.get_activation()),
                 tu.dense(256, 128, tu.get_activation()),
                 tu.dense(128, 256, tu.get_activation()),
                 tu.lam(lambda x: x.reshape(-1, 4, 8, 8)),
                 tu.deconv_block(i=4, o=32, ks=5, s=1, p=1, d=1),
                 tu.deconv_block(i=32, o=32, ks=5, s=1, p=1, d=1),
-                tu.deconv_block(i=32, o=8, ks=6, s=1, p=2, d=2, a=nn.Tanh()),
+                tu.deconv_block(i=32, o=4, ks=5, s=1, p=2, d=2, a=a),
             )
 
-        self.update_gate = block()
-        self.update_state = block()
-
-        self.upscale_state = nn.Sequential(
-            tu.deconv_block(i=8, o=64, ks=5, s=1, p=1, d=2),
-            tu.deconv_block(i=64, o=32, ks=3, s=1, p=1, d=2),
-            tu.deconv_block(i=32, o=8, ks=3, s=1, p=0, d=1, a=nn.Tanh()),
-        )
+        self.update_gate = block(a=nn.Sigmoid())
+        self.update_state = block(a=nn.Tanh())
 
         self.to_rgb = nn.Sequential(
-            tu.deconv_block(i=8, o=32, ks=5, s=1, p=1, d=2),
-            tu.deconv_block(i=32, o=32, ks=5, s=1, p=0, d=1),
-            tu.deconv_block(i=32, o=32, ks=3, s=1, p=0, d=1),
-            tu.deconv_block(i=32, o=3, ks=3, s=1, p=0, d=1, a=nn.Sigmoid()),
+            tu.deconv_block(i=4, o=32, ks=4, s=1, p=1, d=1),
+            tu.deconv_block(i=32, o=64, ks=5, s=2, p=2, d=1),
+            tu.deconv_block(i=64, o=128, ks=7, s=2, p=3, d=1),
+            tu.deconv_block(i=128, o=3, ks=2, s=1, p=1, d=1, a=nn.Sigmoid()),
         )
 
     def forward(self, x):
@@ -73,8 +67,7 @@ class ActionPreconditionFusion(tu.BaseModule):
         update_gate = F.sigmoid(self.update_gate(cat_input))
         update_state = self.update_state(cat_input)
 
-        upscaled_state = self.upscale_state(preconditions)
-        out = update_gate * upscaled_state + (1 - update_gate) * update_state
+        out = update_gate * preconditions + (1 - update_gate) * update_state
         out = self.to_rgb(out)
 
         return out
@@ -84,21 +77,15 @@ class ForwardModel(tu.BaseModule):
     def __init__(
         self,
         num_actions,
-        action_output_channels,
         precondition_channels,
-        precondition_out_channels,
+        apf_in_size,
     ):
         super().__init__()
         self.num_actions = num_actions
 
-        self.ae = ActionEncoder(num_actions, action_output_channels)
-        self.pe = PreconditionEncoder(
-            precondition_channels,
-            precondition_out_channels,
-        )
-        self.apf = ActionPreconditionFusion(
-            action_output_channels + precondition_out_channels,
-        )
+        self.ae = ActionEncoder(num_actions)
+        self.pe = PreconditionEncoder(precondition_channels)
+        self.apf = ActionPreconditionFusion(apf_in_size)
 
     def forward(self, x):
         actions, preconditions = x
@@ -198,28 +185,27 @@ def sanity_check():
     num_actions = 3
 
     actions = torch.rand(10, num_actions)
-    ae = ActionEncoder(num_actions, out_channels=32)
+    ae = ActionEncoder(num_actions)
     action_activation = ae(actions)
 
     print(action_activation.shape)
 
     precondition_size = 1
-    preconditions = torch.rand(10, precondition_size * 3, 32, 32)
-    pe = PreconditionEncoder(precondition_size * 3, out_channels=512)
+    preconditions = torch.rand(10, precondition_size * 3, 64, 64)
+    pe = PreconditionEncoder(precondition_size * 3)
     precondition_activation = pe(preconditions)
 
     print(precondition_activation.shape)
 
-    apf = ActionPreconditionFusion(in_channels=512 + 32)
+    apf = ActionPreconditionFusion(1024 + 32)
     fusion_activation = apf([action_activation, precondition_activation])
 
     print(fusion_activation.shape)
 
     fm = ForwardModel(
         num_actions=num_actions,
-        action_output_channels=32,
         precondition_channels=precondition_size * 3,
-        precondition_out_channels=512,
+        apf_in_size=1024 + 32,
     )
 
     future_frame = fm([actions, preconditions])
