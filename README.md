@@ -1,5 +1,7 @@
 # Differentiable Simulation
 
+## I am continuing the work for my master's project [here](https://github.com/ichko/forward-model).
+
 Learning to simulate complex processes with neural networks.
 
 ---
